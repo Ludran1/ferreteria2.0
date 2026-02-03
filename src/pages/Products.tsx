@@ -3,8 +3,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { mockProducts, mockCategories } from '@/data/mockData';
-import { Plus, Search, Filter, Package, Edit, Trash2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Plus, Search, Package, Edit, Trash2 } from 'lucide-react';
 
 export default function Products() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -78,6 +77,9 @@ export default function Products() {
                     {product.name}
                   </h3>
                   <p className="mt-1 text-xs text-muted-foreground">{product.sku}</p>
+                  {product.barcode && (
+                    <p className="text-xs text-muted-foreground">Código: {product.barcode}</p>
+                  )}
                 </div>
               </div>
 
@@ -88,18 +90,6 @@ export default function Products() {
               <div className="mt-4 flex items-center justify-between">
                 <span className="text-lg font-bold text-primary">
                   ${product.price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                </span>
-                <span
-                  className={cn(
-                    'rounded-full px-3 py-1 text-xs font-medium',
-                    product.stock > 30
-                      ? 'bg-success/10 text-success'
-                      : product.stock > 10
-                      ? 'bg-warning/10 text-warning'
-                      : 'bg-destructive/10 text-destructive'
-                  )}
-                >
-                  {product.stock} en stock
                 </span>
               </div>
 

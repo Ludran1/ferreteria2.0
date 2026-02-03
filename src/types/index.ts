@@ -3,15 +3,16 @@ export interface Product {
   name: string;
   description: string;
   price: number;
-  stock: number;
   category: string;
   sku: string;
+  barcode?: string;
   image?: string;
 }
 
 export interface QuoteItem {
   product: Product;
   quantity: number;
+  customPrice?: number; // Precio personalizado por ítem
 }
 
 export interface Quote {
