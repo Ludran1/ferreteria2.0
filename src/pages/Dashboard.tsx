@@ -2,7 +2,6 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { RecentSales } from '@/components/dashboard/RecentSales';
 import { QuickActions } from '@/components/dashboard/QuickActions';
-import { LowStockAlert } from '@/components/dashboard/LowStockAlert';
 import { DollarSign, ShoppingCart, Package, TrendingUp } from 'lucide-react';
 
 export default function Dashboard() {
@@ -54,7 +53,6 @@ export default function Dashboard() {
         {/* Right Column */}
         <div className="space-y-6">
           <QuickActions />
-          <LowStockAlert />
         </div>
       </div>
     </MainLayout>

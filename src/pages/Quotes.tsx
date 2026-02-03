@@ -1,26 +1,55 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { mockProducts, mockQuotes } from '@/data/mockData';
 import { Product, QuoteItem } from '@/types';
-import { Plus, Search, Minus, Trash2, FileText, ShoppingCart } from 'lucide-react';
+import { Plus, Search, Minus, Trash2, FileText, ShoppingCart, ScanBarcode, Edit2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 
 export default function Quotes() {
   const [searchTerm, setSearchTerm] = useState('');
   const [cartItems, setCartItems] = useState<QuoteItem[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
+  const [scannerActive, setScannerActive] = useState(true);
   const { toast } = useToast();
+
+  const handleBarcodeScan = useCallback((barcode: string) => {
+    const product = mockProducts.find(
+      (p) => p.barcode === barcode || p.sku.toLowerCase() === barcode.toLowerCase()
+    );
+    
+    if (product) {
+      addToCart(product);
+      toast({
+        title: 'Producto agregado',
+        description: `${product.name} añadido al carrito`,
+      });
+    } else {
+      toast({
+        title: 'Producto no encontrado',
+        description: `No se encontró producto con código: ${barcode}`,
+        variant: 'destructive',
+      });
+    }
+  }, [toast]);
+
+  useBarcodeScanner({
+    onScan: handleBarcodeScan,
+    minLength: 4,
+  });
 
   const filteredProducts = mockProducts.filter(
     (product) =>
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.sku.toLowerCase().includes(searchTerm.toLowerCase())
+      product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.barcode?.includes(searchTerm)
   );
 
   const addToCart = (product: Product) => {
@@ -49,12 +78,27 @@ export default function Quotes() {
     );
   };
 
+  const updateCustomPrice = (productId: string, newPrice: string) => {
+    const priceValue = parseFloat(newPrice);
+    setCartItems((prev) =>
+      prev.map((item) =>
+        item.product.id === productId
+          ? { ...item, customPrice: isNaN(priceValue) ? undefined : priceValue }
+          : item
+      )
+    );
+  };
+
   const removeFromCart = (productId: string) => {
     setCartItems((prev) => prev.filter((item) => item.product.id !== productId));
   };
 
+  const getItemPrice = (item: QuoteItem) => {
+    return item.customPrice !== undefined ? item.customPrice : item.product.price;
+  };
+
   const total = cartItems.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
+    (sum, item) => sum + getItemPrice(item) * item.quantity,
     0
   );
 
@@ -91,16 +135,33 @@ export default function Quotes() {
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Products Panel */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar productos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+          {/* Search with Barcode indicator */}
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Buscar productos o escanear código de barras..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Button
+              variant={scannerActive ? 'default' : 'secondary'}
+              size="icon"
+              onClick={() => setScannerActive(!scannerActive)}
+              title={scannerActive ? 'Escáner activo' : 'Escáner inactivo'}
+            >
+              <ScanBarcode className="h-5 w-5" />
+            </Button>
           </div>
+
+          {scannerActive && (
+            <div className="flex items-center gap-2 rounded-lg bg-success/10 px-4 py-2 text-sm text-success">
+              <ScanBarcode className="h-4 w-4" />
+              <span>Lector de código de barras activo - Escanea un producto</span>
+            </div>
+          )}
 
           {/* Products Grid */}
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -192,7 +253,7 @@ export default function Quotes() {
             </div>
 
             {/* Cart Items */}
-            <div className="mt-6 max-h-64 space-y-3 overflow-y-auto">
+            <div className="mt-6 max-h-80 space-y-3 overflow-y-auto">
               {cartItems.length === 0 ? (
                 <p className="text-center text-sm text-muted-foreground py-8">
                   Agrega productos a la cotización
@@ -201,44 +262,97 @@ export default function Quotes() {
                 cartItems.map((item) => (
                   <div
                     key={item.product.id}
-                    className="flex items-center justify-between rounded-lg bg-secondary/50 p-3"
+                    className="rounded-lg bg-secondary/50 p-3"
                   >
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground truncate">
-                        {item.product.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        ${item.product.price.toLocaleString('es-MX')} c/u
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {item.product.name}
+                        </p>
+                        
+                        {/* Price editing */}
+                        <div className="mt-1 flex items-center gap-2">
+                          {editingPriceId === item.product.id ? (
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-muted-foreground">$</span>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                className="h-6 w-20 text-xs px-1"
+                                defaultValue={getItemPrice(item)}
+                                onBlur={(e) => {
+                                  updateCustomPrice(item.product.id, e.target.value);
+                                  setEditingPriceId(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    updateCustomPrice(item.product.id, (e.target as HTMLInputElement).value);
+                                    setEditingPriceId(null);
+                                  }
+                                  if (e.key === 'Escape') {
+                                    setEditingPriceId(null);
+                                  }
+                                }}
+                                autoFocus
+                              />
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setEditingPriceId(item.product.id)}
+                              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                            >
+                              <span className={cn(
+                                item.customPrice !== undefined && item.customPrice !== item.product.price
+                                  ? 'text-primary font-medium'
+                                  : ''
+                              )}>
+                                ${getItemPrice(item).toLocaleString('es-MX')} c/u
+                              </span>
+                              <Edit2 className="h-3 w-3" />
+                            </button>
+                          )}
+                          {item.customPrice !== undefined && item.customPrice !== item.product.price && (
+                            <span className="text-xs text-muted-foreground line-through">
+                              ${item.product.price.toLocaleString('es-MX')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7"
-                        onClick={() => updateQuantity(item.product.id, -1)}
-                      >
-                        <Minus className="h-3 w-3" />
-                      </Button>
-                      <span className="w-6 text-center text-sm font-medium">
-                        {item.quantity}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => updateQuantity(item.product.id, 1)}
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
+                        className="h-6 w-6 shrink-0"
                         onClick={() => removeFromCart(item.product.id)}
                       >
                         <Trash2 className="h-3 w-3 text-destructive" />
                       </Button>
+                    </div>
+                    
+                    <div className="mt-2 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => updateQuantity(item.product.id, -1)}
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <span className="w-6 text-center text-sm font-medium">
+                          {item.quantity}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => updateQuantity(item.product.id, 1)}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <span className="text-sm font-bold text-foreground">
+                        ${(getItemPrice(item) * item.quantity).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                      </span>
                     </div>
                   </div>
                 ))
