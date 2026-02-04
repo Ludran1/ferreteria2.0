@@ -1,73 +1,80 @@
-# Welcome to your Lovable project
+# Ferretería Amiga POS
 
-## Project info
+Sistema de Punto de Venta (POS) y Gestión diseñado específicamente para ferreterías. Este sistema moderno y eficiente permite administrar ventas, inventario, cotizaciones y guías de remisión, todo optimizado para el mercado peruano (Soles S/).
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+![Preview](src/assets/logo.png) _(Si tienes un logo o screenshot, puedes agregarlo aquí)_
 
-## How can I edit this code?
+## 🚀 Características Principales
 
-There are several ways of editing your application.
+### 🛒 Gestión de Ventas
 
-**Use Lovable**
+- Interfaz de venta rápida e intuitiva.
+- Escaneo de códigos de barras.
+- Cálculo automático de totales.
+- Historial de ventas recientes.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+### 📝 Cotizaciones Avanzadas
 
-Changes made via Lovable will be committed automatically to this repo.
+- **Generación de Cotizaciones:** Crea cotizaciones profesionales para clientes.
+- **Items Manuales:** Posibilidad de agregar productos o servicios no registrados "al vuelo".
+- **Conversión a Venta:** Convierte cotizaciones aprobadas en ventas con un solo clic.
+- **Formato de Impresión:** Diseño optimizado para impresoras térmicas (80mm) y formato A4.
+- **Visualización:** Lista de items clara con controles de cantidad y edición de precios.
 
-**Use your preferred IDE**
+### 📦 Gestión de Inventario
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- Catálogo completo de productos.
+- Control de stock y alertas de bajo inventario.
+- Categorización de productos.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### 📄 Guías de Remisión
 
-Follow these steps:
+- Generación de guías de remisión a partir de ventas seleccionadas.
+- Historial y reimpresión de guías.
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### ⚙️ Configuración y Personalización
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+- Soporte nativo para moneda **Nuevos Soles (S/)**.
+- Configuración de datos de la empresa para impresiones.
 
-# Step 3: Install the necessary dependencies.
-npm i
+## 🛠️ Tecnologías Utilizadas
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+Este proyecto está construido con un stack moderno y robusto:
 
-**Edit a file directly in GitHub**
+- **[React](https://react.dev/)**: Biblioteca principal para la interfaz de usuario.
+- **[TypeScript](https://www.typescriptlang.org/)**: Tipado estático para mayor seguridad y mantenibilidad.
+- **[Vite](https://vitejs.dev/)**: Build tool ultrarápido.
+- **[Tailwind CSS](https://tailwindcss.com/)**: Framework de estilos 'utility-first'.
+- **[Shadcn/ui](https://ui.shadcn.com/)**: Componentes de UI reutilizables y accesibles.
+- **[Lucide React](https://lucide.dev/)**: Iconografía moderna y ligera.
+- **[React Router](https://reactrouter.com/)**: Enrutamiento de la aplicación.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## 📦 Instalación y Uso
 
-**Use GitHub Codespaces**
+1.  **Clonar el repositorio:**
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+    ```bash
+    git clone https://github.com/Ludran1/ferreteria2.0.git
+    cd ferreteria2.0
+    ```
 
-## What technologies are used for this project?
+2.  **Instalar dependencias:**
 
-This project is built with:
+    ```bash
+    npm install
+    ```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+3.  **Iniciar el servidor de desarrollo:**
 
-## How can I deploy this project?
+    ```bash
+    npm run dev
+    ```
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+4.  **Construir para producción:**
+    ```bash
+    npm run build
+    ```
 
-## Can I connect a custom domain to my Lovable project?
+## 📄 Licencia
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Este proyecto está bajo la Licencia MIT.
