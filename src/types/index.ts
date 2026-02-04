@@ -45,3 +45,24 @@ export interface RemissionGuide {
   date: Date;
   status: 'pending' | 'delivered';
 }
+
+export interface BusinessInfo {
+  name: string;
+  rfc: string;
+  address: string;
+  phone: string;
+  email: string;
+}
+
+export interface PrintableDocumentData {
+  type: 'quote' | 'sale';
+  documentNumber: string;
+  date: Date;
+  customerName: string;
+  customerPhone?: string;
+  items: QuoteItem[];
+  subtotal: number;
+  tax: number;
+  total: number;
+  paymentMethod?: 'cash' | 'card' | 'transfer';
+}
