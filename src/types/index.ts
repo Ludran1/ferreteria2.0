@@ -6,6 +6,7 @@ export interface Product {
   category: string;
   sku: string;
   barcode?: string;
+  additionalBarcodes?: string[];
   image?: string;
 }
 
@@ -32,7 +33,7 @@ export interface Sale {
   customerName: string;
   date: Date;
   total: number;
-  paymentMethod: 'cash' | 'card' | 'transfer';
+  paymentMethod: 'cash' | 'card' | 'transfer' | 'yape' | 'plin';
   invoiceNumber?: string;
 }
 
@@ -55,14 +56,15 @@ export interface BusinessInfo {
 }
 
 export interface PrintableDocumentData {
-  type: 'quote' | 'sale';
+  type: 'quote' | 'sale' | 'remission';
   documentNumber: string;
   date: Date;
   customerName: string;
   customerPhone?: string;
+  address?: string; // For remission guides
   items: QuoteItem[];
   subtotal: number;
   tax: number;
   total: number;
-  paymentMethod?: 'cash' | 'card' | 'transfer';
+  paymentMethod?: 'cash' | 'card' | 'transfer' | 'yape' | 'plin';
 }

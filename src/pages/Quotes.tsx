@@ -1,12 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { mockProducts, mockQuotes } from '@/data/mockData';
+import { mockProducts } from '@/data/mockData';
 import { Product, QuoteItem, PrintableDocumentData } from '@/types';
-import { Plus, Search, Minus, Trash2, FileText, ShoppingCart, ScanBarcode, Edit2, Printer } from 'lucide-react';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { Plus, Search, Minus, Trash2, FileText, ShoppingCart, ScanBarcode, Edit2, Printer, History, RefreshCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -16,6 +14,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 import { usePrint } from '@/hooks/usePrint';
@@ -29,8 +34,36 @@ export default function Quotes() {
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [scannerActive, setScannerActive] = useState(true);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  
+  // New States for "Sale vs Quote" and History
+  const [transactionType, setTransactionType] = useState<'quote' | 'sale'>('quote');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'transfer' | 'yape' | 'plin'>('cash');
+  
+
   const { toast } = useToast();
   const { printRef, handlePrint } = usePrint();
+
+  // Check for POS Draft on Mount
+  useEffect(() => {
+    const draft = localStorage.getItem('posDraft');
+    if (draft) {
+      try {
+        const data = JSON.parse(draft);
+        setCustomerName(data.customerName || '');
+        setCartItems(data.items || []);
+        if (data.type) setTransactionType(data.type);
+        
+        toast({
+            title: "Datos Cargados",
+            description: "Se han cargado los datos del historial para editar.",
+        });
+        
+        localStorage.removeItem('posDraft');
+      } catch (e) {
+        console.error("Error loading draft", e);
+      }
+    }
+  }, []);
 
   // Custom Item State
   const [showCustomItemModal, setShowCustomItemModal] = useState(false);
@@ -65,7 +98,9 @@ export default function Quotes() {
 
   const handleBarcodeScan = useCallback((barcode: string) => {
     const product = mockProducts.find(
-      (p) => p.barcode === barcode || p.sku.toLowerCase() === barcode.toLowerCase()
+      (p) => p.barcode === barcode || 
+             p.sku.toLowerCase() === barcode.toLowerCase() ||
+             p.additionalBarcodes?.includes(barcode)
     );
     
     if (product) {
@@ -92,7 +127,8 @@ export default function Quotes() {
     (product) =>
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.barcode?.includes(searchTerm)
+      product.barcode?.includes(searchTerm) ||
+      product.additionalBarcodes?.some(code => code.includes(searchTerm))
   );
 
   const addToCart = (product: Product) => {
@@ -181,10 +217,12 @@ export default function Quotes() {
       handlePrint();
       setShowPrintPreview(false);
       
+      const typeLabel = transactionType === 'sale' ? 'Venta' : 'Cotización';
+      
       // Show success toast and clear form
       toast({
-        title: 'Cotización guardada',
-        description: `Cotización para ${customerName} por S/ ${total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
+        title: `${typeLabel} guardada`,
+        description: `${typeLabel} para ${customerName} por S/ ${total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
       });
       
       setCartItems([]);
@@ -195,19 +233,20 @@ export default function Quotes() {
 
 
   const getPrintData = (): PrintableDocumentData => ({
-    type: 'quote',
+    type: transactionType,
     documentNumber: `COT-${Date.now().toString().slice(-6)}`,
     date: new Date(),
     customerName,
     customerPhone: customerPhone || undefined,
     items: cartItems,
     subtotal: total,
-    tax: total * 0.16,
-    total: total * 1.16,
+    tax: 0,
+    total: total,
+    paymentMethod: transactionType === 'sale' ? paymentMethod : undefined,
   });
 
   return (
-    <MainLayout title="Cotizaciones" subtitle="Crea y gestiona cotizaciones">
+    <MainLayout title="Ventas y Cotizaciones" subtitle="Gestiona ventas, cotizaciones e historial">
       <div className="grid gap-6 lg:grid-cols-5">
         {/* Products Panel */}
         <div className="lg:col-span-3 space-y-6">
@@ -309,52 +348,45 @@ export default function Quotes() {
               </button>
             ))}
           </div>
-
-          {/* Recent Quotes */}
-          <div className="rounded-2xl bg-card p-6 shadow-md">
-            <h3 className="text-lg font-semibold text-foreground">Cotizaciones Recientes</h3>
-            <div className="mt-4 space-y-3">
-              {mockQuotes.map((quote) => (
-                <div
-                  key={quote.id}
-                  className="flex items-center justify-between rounded-xl bg-secondary/30 p-4"
-                >
-                  <div>
-                    <p className="font-medium text-foreground">{quote.customerName}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {format(quote.date, 'dd MMM yyyy', { locale: es })} • {quote.items.length} productos
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-foreground">
-                      S/ {quote.total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
-                    </p>
-                    <span
-                      className={cn(
-                        'inline-block rounded-full px-2 py-0.5 text-xs font-medium',
-                        quote.status === 'pending' && 'bg-warning/10 text-warning',
-                        quote.status === 'approved' && 'bg-success/10 text-success',
-                        quote.status === 'rejected' && 'bg-destructive/10 text-destructive'
-                      )}
-                    >
-                      {quote.status === 'pending' && 'Pendiente'}
-                      {quote.status === 'approved' && 'Aprobada'}
-                      {quote.status === 'rejected' && 'Rechazada'}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Cart Panel */}
         <div className="lg:col-span-2">
           <div className="sticky top-24 rounded-2xl bg-card p-6 shadow-lg">
             <div className="flex items-center gap-3">
-              <div>
+              <div className="w-full">
+                <div className="flex items-center justify-between mb-4">
+                     {/* Toggle Mode */}
+                     <div className="flex bg-secondary p-1 rounded-lg">
+                        <button
+                          onClick={() => setTransactionType('sale')}
+                          className={cn(
+                            "px-4 py-1.5 rounded-md text-sm font-medium transition-all",
+                            transactionType === 'sale' 
+                              ? "bg-white text-primary shadow-sm" 
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          Venta
+                        </button>
+                        <button
+                          onClick={() => setTransactionType('quote')}
+                          className={cn(
+                            "px-4 py-1.5 rounded-md text-sm font-medium transition-all",
+                            transactionType === 'quote' 
+                              ? "bg-white text-primary shadow-sm" 
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          Cotización
+                        </button>
+                     </div>
+                </div>
+
                 <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-foreground">Nueva Cotización</h3>
+                  <h3 className="font-semibold text-foreground">
+                    {transactionType === 'sale' ? 'Nueva Venta' : 'Nueva Cotización'}
+                  </h3>
                   <span className="text-sm text-muted-foreground">
                     ({cartItems.length} productos)
                   </span>
@@ -498,11 +530,27 @@ export default function Quotes() {
             {/* Total */}
 
             <div className="mt-3 border-t border-border pt-2">
-              <div className="flex items-center justify-between">
-                <span className="text-lg font-semibold">Total</span>
-                <span className="text-xl font-bold text-primary">
-                  S/ {(total * 1.16).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
-                </span>
+              <div className="flex items-center justify-between gap-4">
+                  {transactionType === 'sale' && (
+                     <Select value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)}>
+                        <SelectTrigger className="w-[140px] h-8">
+                            <SelectValue placeholder="Método de Pago" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="cash">Efectivo</SelectItem>
+                            <SelectItem value="card">Tarjeta</SelectItem>
+                            <SelectItem value="transfer">Transferencia</SelectItem>
+                            <SelectItem value="yape">Yape</SelectItem>
+                            <SelectItem value="plin">Plin</SelectItem>
+                        </SelectContent>
+                     </Select>
+                  )}
+                 <div className="flex items-center gap-4 ml-auto">
+                    <span className="text-lg font-semibold">Total</span>
+                    <span className="text-xl font-bold text-primary">
+                    S/ {total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                    </span>
+                 </div>
               </div>
             </div>
 
@@ -510,11 +558,9 @@ export default function Quotes() {
             <div className="mt-6 space-y-2">
               <Button className="w-full gap-2" size="lg" onClick={handleSaveAndPrint}>
                 <Printer className="h-4 w-4" />
-                Guardar e Imprimir
+                {transactionType === 'sale' ? 'Finalizar Venta' : 'Guardar Cotización'}
               </Button>
-              <Button variant="secondary" className="w-full" size="lg">
-                Convertir a Venta
-              </Button>
+
             </div>
           </div>
         </div>

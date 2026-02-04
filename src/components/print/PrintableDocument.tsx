@@ -12,6 +12,8 @@ const paymentMethodLabels = {
   cash: 'Efectivo',
   card: 'Tarjeta',
   transfer: 'Transferencia',
+  yape: 'Yape',
+  plin: 'Plin',
 };
 
 export const PrintableDocument = forwardRef<HTMLDivElement, PrintableDocumentProps>(
@@ -38,7 +40,11 @@ export const PrintableDocument = forwardRef<HTMLDivElement, PrintableDocumentPro
           <p className="text-[10px]">RFC: {businessInfo.rfc}</p>
           
           <div className="mt-2">
-            <p className="font-bold">{isQuote ? 'COTIZACIÓN' : 'TICKET DE VENTA'}</p>
+            <p className="font-bold">
+              {data.type === 'quote' && 'COTIZACIÓN'}
+              {data.type === 'sale' && 'TICKET DE VENTA'}
+              {data.type === 'remission' && 'GUÍA DE REMISIÓN'}
+            </p>
             <p>#{data.documentNumber}</p>
             <p className="text-[10px]">
               {format(data.date, "dd/MM/yyyy HH:mm", { locale: es })}
@@ -51,6 +57,9 @@ export const PrintableDocument = forwardRef<HTMLDivElement, PrintableDocumentPro
           <p><span className="font-semibold">Cliente:</span> {data.customerName}</p>
           {data.customerPhone && (
             <p><span className="font-semibold">Tel:</span> {data.customerPhone}</p>
+          )}
+          {data.address && (
+            <p><span className="font-semibold">Dirección:</span> {data.address}</p>
           )}
         </div>
 

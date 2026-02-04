@@ -5,11 +5,18 @@ import { Input } from '@/components/ui/input';
 import { mockSales } from '@/data/mockData';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Plus, Search, Truck, MapPin, Package, Printer, CheckCircle2 } from 'lucide-react';
+import { Plus, Search, Truck, MapPin, Package, Printer, CheckCircle2, Copy, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { usePrint } from '@/hooks/usePrint';
 import { CreateRemissionModal } from '@/components/remission/CreateRemissionModal';
 import { Sale } from '@/types';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // Mock remission guides based on sales
 const initialMockGuides = mockSales.slice(0, 2).map((sale, index) => ({
@@ -28,8 +35,10 @@ export default function RemissionGuides() {
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [newAddress, setNewAddress] = useState('');
+  const [viewGuide, setViewGuide] = useState<any | null>(null); // State for modal view
   
   const { toast } = useToast();
+  const { print } = usePrint();
 
   const filteredGuides = guides.filter(
     (guide) =>
@@ -72,6 +81,20 @@ export default function RemissionGuides() {
     setShowAddressModal(false);
     setNewAddress('');
     setSelectedSale(null);
+  };
+
+  const activePrint = (guide: any) => {
+     print({
+        type: 'remission',
+        documentNumber: guide.id,
+        date: guide.date,
+        customerName: guide.customerName,
+        address: guide.address,
+        items: guide.items,
+        subtotal: 0,
+        tax: 0,
+        total: 0,
+    });
   };
 
   return (
@@ -217,7 +240,11 @@ export default function RemissionGuides() {
 
               {/* Actions */}
               <div className="mt-6 flex gap-2">
-                <Button variant="outline" className="flex-1 gap-2">
+                <Button 
+                  variant="outline" 
+                  className="flex-1 gap-2"
+                  onClick={() => setViewGuide(guide)}
+                >
                   <Printer className="h-4 w-4" />
                   Imprimir
                 </Button>
@@ -244,6 +271,66 @@ export default function RemissionGuides() {
           </p>
         </div>
       )}
+
+      {/* View Receipt Modal */}
+       <Dialog open={!!viewGuide} onOpenChange={(open) => !open && setViewGuide(null)}>
+        <DialogContent className="max-w-md">
+            <DialogHeader>
+                <DialogTitle>Detalle de Guía de Remisión</DialogTitle>
+            </DialogHeader>
+            {viewGuide && (
+                <div className="space-y-4">
+                    <div className="flex justify-between border-b pb-2">
+                        <div>
+                            <p className="font-bold text-lg">{viewGuide.id}</p>
+                            <p className="text-sm text-muted-foreground">{format(viewGuide.date, 'dd MMM yyyy, HH:mm', { locale: es })}</p>
+                        </div>
+                        <div className="text-right">
+                            <span className={cn(
+                                'rounded-full px-3 py-1 text-xs font-semibold',
+                                viewGuide.status === 'pending'
+                                    ? 'bg-warning/10 text-warning'
+                                    : 'bg-success/10 text-success'
+                            )}>
+                                {viewGuide.status === 'pending' ? 'Pendiente' : 'Entregada'}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <p className="text-sm font-medium text-muted-foreground">Cliente</p>
+                        <p className="text-base">{viewGuide.customerName}</p>
+                    </div>
+
+                    <div>
+                        <p className="text-sm font-medium text-muted-foreground">Dirección de Entrega</p>
+                        <p className="text-base flex items-start gap-1">
+                             <MapPin className="h-4 w-4 mt-1 text-muted-foreground" />
+                             {viewGuide.address}
+                        </p>
+                    </div>
+
+                    <div className="border rounded-lg p-3 bg-secondary/20 max-h-[300px] overflow-y-auto">
+                        <p className="text-sm font-medium text-muted-foreground mb-2">Productos a Entregar</p>
+                        <ul className="space-y-2 text-sm">
+                            {viewGuide.items.map((item: any, i: number) => (
+                                <li key={i} className="flex justify-between">
+                                    <span>{item.quantity}x {item.product.name}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+
+                    <div className="flex gap-2 pt-4">
+                        <Button className="w-full gap-2" onClick={() => activePrint(viewGuide)}>
+                            <Printer className="h-4 w-4" /> Imprimir Guía
+                        </Button>
+                    </div>
+                </div>
+            )}
+        </DialogContent>
+      </Dialog>
+
     </MainLayout>
   );
 }

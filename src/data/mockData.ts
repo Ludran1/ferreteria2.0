@@ -93,7 +93,7 @@ export const mockQuotes: Quote[] = [
     ],
     customerName: 'Juan Pérez',
     customerPhone: '555-123-4567',
-    date: new Date('2024-01-15'),
+    date: new Date(new Date().setDate(new Date().getDate() - 2)), // 2 days ago
     status: 'pending',
     total: 4225.00,
   },
@@ -105,7 +105,7 @@ export const mockQuotes: Quote[] = [
     ],
     customerName: 'María García',
     customerEmail: 'maria@email.com',
-    date: new Date('2024-01-14'),
+    date: new Date(new Date().setDate(new Date().getDate() - 5)), // 5 days ago
     status: 'approved',
     total: 4150.00,
   },
@@ -119,7 +119,7 @@ export const mockSales: Sale[] = [
       { product: mockProducts[4], quantity: 10 },
     ],
     customerName: 'Carlos López',
-    date: new Date('2024-01-15'),
+    date: new Date(new Date().setDate(new Date().getDate() - 1)), // 1 day ago
     total: 5120.00,
     paymentMethod: 'card',
     invoiceNumber: 'FAC-001',
@@ -130,7 +130,7 @@ export const mockSales: Sale[] = [
       { product: mockProducts[7], quantity: 50 },
     ],
     customerName: 'Construcciones ABC',
-    date: new Date('2024-01-14'),
+    date: new Date(new Date().setDate(new Date().getDate() - 10)), // 10 days ago
     total: 4250.00,
     paymentMethod: 'transfer',
     invoiceNumber: 'FAC-002',
@@ -142,7 +142,7 @@ export const mockSales: Sale[] = [
       { product: mockProducts[6], quantity: 1 },
     ],
     customerName: 'Pedro Martínez',
-    date: new Date('2024-01-13'),
+    date: new Date(new Date().setDate(new Date().getDate() - 15)), // 15 days ago
     total: 690.00,
     paymentMethod: 'cash',
   },

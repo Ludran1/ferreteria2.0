@@ -1,31 +1,67 @@
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from '@/components/ui/textarea';
+import { Plus, X } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Product } from '@/types';
 import { mockCategories } from '@/data/mockData';
-import { Plus } from 'lucide-react';
-import { toast } from 'sonner';
 
 interface CreateProductModalProps {
-  onProductCreated?: () => void;
+  onProductCreated?: (product: Product) => void;
+  categories?: string[];
 }
 
-export function CreateProductModal({ onProductCreated }: CreateProductModalProps) {
+export function CreateProductModal({ onProductCreated, categories = mockCategories }: CreateProductModalProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
   
   // Form State
   const [formData, setFormData] = useState({
     name: '',
     sku: '',
     barcode: '',
+    additionalBarcodes: [] as string[],
     category: '',
     price: '',
     description: ''
   });
+
+  const [newBarcode, setNewBarcode] = useState('');
+
+  const handleAddBarcode = () => {
+    if (newBarcode.trim()) {
+      setFormData(prev => ({
+        ...prev,
+        additionalBarcodes: [...prev.additionalBarcodes, newBarcode.trim()]
+      }));
+      setNewBarcode('');
+    }
+  };
+
+  const handleRemoveBarcode = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      additionalBarcodes: prev.additionalBarcodes.filter((_, i) => i !== index)
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,13 +72,20 @@ export function CreateProductModal({ onProductCreated }: CreateProductModalProps
 
     // Basic Validation
     if (!formData.name || !formData.price || !formData.category) {
-      toast.error('Por favor completa los campos requeridos');
+      toast({
+        title: "Error",
+        description: "Por favor completa los campos requeridos",
+        variant: "destructive"
+      });
       setLoading(false);
       return;
     }
 
     console.log('Product Created:', formData);
-    toast.success('Producto creado exitosamente');
+    toast({
+      title: "Producto creado",
+      description: "Producto creado exitosamente"
+    });
     
     setLoading(false);
     setOpen(false);
@@ -52,12 +95,16 @@ export function CreateProductModal({ onProductCreated }: CreateProductModalProps
       name: '',
       sku: '',
       barcode: '',
+      additionalBarcodes: [],
       category: '',
       price: '',
       description: ''
     });
 
-    if (onProductCreated) onProductCreated();
+    if (onProductCreated) {
+        // Cast to any/Product for property matching since specific ID logic isn't here
+        onProductCreated({ ...formData, id: Date.now().toString(), price: Number(formData.price) } as unknown as Product);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -106,7 +153,7 @@ export function CreateProductModal({ onProductCreated }: CreateProductModalProps
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="barcode">Código de Barras</Label>
+              <Label htmlFor="barcode">Código Principal</Label>
               <Input
                 id="barcode"
                 name="barcode"
@@ -115,6 +162,43 @@ export function CreateProductModal({ onProductCreated }: CreateProductModalProps
                 placeholder="750..."
               />
             </div>
+          </div>
+
+          <div className="grid gap-2">
+            <Label>Códigos Adicionales</Label>
+            <div className="flex gap-2">
+                <Input 
+                    value={newBarcode}
+                    onChange={(e) => setNewBarcode(e.target.value)}
+                    placeholder="Escanear o escribir..."
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddBarcode();
+                        }
+                    }}
+                />
+                <Button type="button" size="icon" variant="secondary" onClick={handleAddBarcode}>
+                    <Plus className="h-4 w-4" />
+                </Button>
+            </div>
+            
+            {formData.additionalBarcodes.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                    {formData.additionalBarcodes.map((code, index) => (
+                        <div key={index} className="flex items-center bg-secondary px-2 py-1 rounded-md text-xs">
+                            <span>{code}</span>
+                            <button 
+                                type="button"
+                                onClick={() => handleRemoveBarcode(index)}
+                                className="ml-1 text-muted-foreground hover:text-foreground"
+                            >
+                                <X className="h-3 w-3" />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">

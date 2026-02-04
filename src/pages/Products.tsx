@@ -5,14 +5,18 @@ import { Input } from '@/components/ui/input';
 import { mockProducts, mockCategories } from '@/data/mockData';
 import { Plus, Search, Package, Edit, Trash2 } from 'lucide-react';
 import { CreateProductModal } from '@/components/products/CreateProductModal';
+import { ManageCategoriesModal } from '@/components/products/ManageCategoriesModal';
 
 export default function Products() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [categories, setCategories] = useState<string[]>(mockCategories);
 
   const filteredProducts = mockProducts.filter((product) => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.sku.toLowerCase().includes(searchTerm.toLowerCase());
+      product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.barcode?.includes(searchTerm) ||
+      product.additionalBarcodes?.some(code => code.includes(searchTerm));
     const matchesCategory = !selectedCategory || product.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
@@ -30,7 +34,13 @@ export default function Products() {
             className="pl-10"
           />
         </div>
-        <CreateProductModal />
+        <div className="flex gap-2">
+            <ManageCategoriesModal 
+                initialCategories={categories} 
+                onUpdateCategories={setCategories} 
+            />
+            <CreateProductModal categories={categories} />
+        </div>
       </div>
 
       {/* Category Filters */}
@@ -42,7 +52,7 @@ export default function Products() {
         >
           Todos
         </Button>
-        {mockCategories.map((category) => (
+        {categories.map((category) => (
           <Button
             key={category}
             variant={selectedCategory === category ? 'default' : 'secondary'}

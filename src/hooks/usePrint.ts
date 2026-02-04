@@ -116,5 +116,5 @@ export function usePrint() {
     }, 250);
   }, []);
 
-  return { printRef, handlePrint };
+  return { printRef, handlePrint, print: handlePrint };
 }
