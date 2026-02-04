@@ -106,7 +106,7 @@ export default function Quotes() {
     0
   );
 
-  const handleCreateQuote = () => {
+  const handleSaveAndPrint = () => {
     if (!customerName.trim()) {
       toast({
         title: 'Error',
@@ -124,40 +124,24 @@ export default function Quotes() {
       return;
     }
 
-    toast({
-      title: 'Cotización creada',
-      description: `Cotización para ${customerName} por $${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
-    });
-
-    setCartItems([]);
-    setCustomerName('');
-    setCustomerPhone('');
-  };
-
-  const handlePrintQuote = () => {
-    if (!customerName.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Ingresa el nombre del cliente para imprimir',
-        variant: 'destructive',
-      });
-      return;
-    }
-    if (cartItems.length === 0) {
-      toast({
-        title: 'Error',
-        description: 'Agrega productos para imprimir',
-        variant: 'destructive',
-      });
-      return;
-    }
+    // Show print preview and print
     setShowPrintPreview(true);
-    // Small delay to ensure the component is rendered
     setTimeout(() => {
       handlePrint();
       setShowPrintPreview(false);
+      
+      // Show success toast and clear form
+      toast({
+        title: 'Cotización guardada',
+        description: `Cotización para ${customerName} por $${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
+      });
+      
+      setCartItems([]);
+      setCustomerName('');
+      setCustomerPhone('');
     }, 100);
   };
+
 
   const getPrintData = (): PrintableDocumentData => ({
     type: 'quote',
@@ -424,17 +408,9 @@ export default function Quotes() {
 
             {/* Actions */}
             <div className="mt-6 space-y-2">
-              <Button className="w-full" size="lg" onClick={handleCreateQuote}>
-                Crear Cotización
-              </Button>
-              <Button 
-                variant="outline" 
-                className="w-full gap-2" 
-                size="lg"
-                onClick={handlePrintQuote}
-              >
+              <Button className="w-full gap-2" size="lg" onClick={handleSaveAndPrint}>
                 <Printer className="h-4 w-4" />
-                Imprimir Cotización
+                Guardar e Imprimir
               </Button>
               <Button variant="secondary" className="w-full" size="lg">
                 Convertir a Venta
