@@ -5,8 +5,11 @@ import { Input } from '@/components/ui/input';
 import { mockSales } from '@/data/mockData';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Search, Download, Eye, CreditCard, Banknote, Building2, FileText } from 'lucide-react';
+import { Search, Download, Eye, CreditCard, Banknote, Building2, FileText, Printer } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Sale, PrintableDocumentData } from '@/types';
+import { usePrint } from '@/hooks/usePrint';
+import { PrintableDocument } from '@/components/print/PrintableDocument';
 
 const paymentIcons = {
   cash: Banknote,
@@ -23,6 +26,8 @@ const paymentLabels = {
 export default function Sales() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSale, setSelectedSale] = useState<string | null>(null);
+  const [saleToPrint, setSaleToPrint] = useState<Sale | null>(null);
+  const { printRef, handlePrint } = usePrint();
 
   const filteredSales = mockSales.filter(
     (sale) =>
@@ -31,6 +36,26 @@ export default function Sales() {
   );
 
   const totalSales = filteredSales.reduce((sum, sale) => sum + sale.total, 0);
+
+  const handlePrintSale = (sale: Sale) => {
+    setSaleToPrint(sale);
+    setTimeout(() => {
+      handlePrint();
+      setSaleToPrint(null);
+    }, 100);
+  };
+
+  const getSalePrintData = (sale: Sale): PrintableDocumentData => ({
+    type: 'sale',
+    documentNumber: sale.id,
+    date: sale.date,
+    customerName: sale.customerName,
+    items: sale.items,
+    subtotal: sale.total / 1.16,
+    tax: sale.total - (sale.total / 1.16),
+    total: sale.total,
+    paymentMethod: sale.paymentMethod,
+  });
 
   return (
     <MainLayout title="Historial de Ventas" subtitle="Consulta todas las transacciones">
@@ -142,11 +167,17 @@ export default function Sales() {
                           variant="ghost"
                           size="sm"
                           onClick={() => setSelectedSale(sale.id)}
+                          title="Ver detalles"
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="sm">
-                          <Download className="h-4 w-4" />
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handlePrintSale(sale)}
+                          title="Imprimir"
+                        >
+                          <Printer className="h-4 w-4" />
                         </Button>
                       </div>
                     </td>
@@ -167,6 +198,13 @@ export default function Sales() {
           <p className="mt-2 text-sm text-muted-foreground">
             Intenta ajustar los filtros de búsqueda
           </p>
+        </div>
+      )}
+
+      {/* Hidden Print Component */}
+      {saleToPrint && (
+        <div className="fixed left-[-9999px] top-0">
+          <PrintableDocument ref={printRef} data={getSalePrintData(saleToPrint)} />
         </div>
       )}
     </MainLayout>

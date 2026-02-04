@@ -3,13 +3,15 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { mockProducts, mockQuotes } from '@/data/mockData';
-import { Product, QuoteItem } from '@/types';
-import { Plus, Search, Minus, Trash2, FileText, ShoppingCart, ScanBarcode, Edit2 } from 'lucide-react';
+import { Product, QuoteItem, PrintableDocumentData } from '@/types';
+import { Plus, Search, Minus, Trash2, FileText, ShoppingCart, ScanBarcode, Edit2, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
+import { usePrint } from '@/hooks/usePrint';
+import { PrintableDocument } from '@/components/print/PrintableDocument';
 
 export default function Quotes() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -18,7 +20,9 @@ export default function Quotes() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [scannerActive, setScannerActive] = useState(true);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const { toast } = useToast();
+  const { printRef, handlePrint } = usePrint();
 
   const handleBarcodeScan = useCallback((barcode: string) => {
     const product = mockProducts.find(
@@ -129,6 +133,43 @@ export default function Quotes() {
     setCustomerName('');
     setCustomerPhone('');
   };
+
+  const handlePrintQuote = () => {
+    if (!customerName.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Ingresa el nombre del cliente para imprimir',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (cartItems.length === 0) {
+      toast({
+        title: 'Error',
+        description: 'Agrega productos para imprimir',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setShowPrintPreview(true);
+    // Small delay to ensure the component is rendered
+    setTimeout(() => {
+      handlePrint();
+      setShowPrintPreview(false);
+    }, 100);
+  };
+
+  const getPrintData = (): PrintableDocumentData => ({
+    type: 'quote',
+    documentNumber: `COT-${Date.now().toString().slice(-6)}`,
+    date: new Date(),
+    customerName,
+    customerPhone: customerPhone || undefined,
+    items: cartItems,
+    subtotal: total,
+    tax: total * 0.16,
+    total: total * 1.16,
+  });
 
   return (
     <MainLayout title="Cotizaciones" subtitle="Crea y gestiona cotizaciones">
@@ -386,13 +427,29 @@ export default function Quotes() {
               <Button className="w-full" size="lg" onClick={handleCreateQuote}>
                 Crear Cotización
               </Button>
-              <Button variant="outline" className="w-full" size="lg">
+              <Button 
+                variant="outline" 
+                className="w-full gap-2" 
+                size="lg"
+                onClick={handlePrintQuote}
+              >
+                <Printer className="h-4 w-4" />
+                Imprimir Cotización
+              </Button>
+              <Button variant="secondary" className="w-full" size="lg">
                 Convertir a Venta
               </Button>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Hidden Print Component */}
+      {showPrintPreview && (
+        <div className="fixed left-[-9999px] top-0">
+          <PrintableDocument ref={printRef} data={getPrintData()} />
+        </div>
+      )}
     </MainLayout>
   );
 }
