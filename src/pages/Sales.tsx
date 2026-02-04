@@ -64,7 +64,7 @@ export default function Sales() {
         <div className="rounded-xl bg-card p-5 shadow-md">
           <p className="text-sm text-muted-foreground">Total de Ventas</p>
           <p className="mt-1 text-2xl font-bold text-foreground">
-            ${totalSales.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+            S/ {totalSales.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
           </p>
         </div>
         <div className="rounded-xl bg-card p-5 shadow-md">
@@ -74,7 +74,7 @@ export default function Sales() {
         <div className="rounded-xl bg-card p-5 shadow-md">
           <p className="text-sm text-muted-foreground">Ticket Promedio</p>
           <p className="mt-1 text-2xl font-bold text-foreground">
-            ${(totalSales / filteredSales.length || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+            S/ {(totalSales / filteredSales.length || 0).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
           </p>
         </div>
       </div>
@@ -158,7 +158,7 @@ export default function Sales() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <span className="font-bold text-foreground">
-                        ${sale.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                        S/ {sale.total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
                       </span>
                     </td>
                     <td className="px-6 py-4">

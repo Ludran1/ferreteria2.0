@@ -43,7 +43,7 @@ export function RecentSales() {
               </div>
               <div className="text-right">
                 <p className="font-bold text-foreground">
-                  ${sale.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                  S/ {sale.total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
                 </p>
                 <p className="text-xs text-muted-foreground">{sale.id}</p>
               </div>

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { mockProducts, mockCategories } from '@/data/mockData';
 import { Plus, Search, Package, Edit, Trash2 } from 'lucide-react';
+import { CreateProductModal } from '@/components/products/CreateProductModal';
 
 export default function Products() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -29,10 +30,7 @@ export default function Products() {
             className="pl-10"
           />
         </div>
-        <Button className="gap-2">
-          <Plus className="h-4 w-4" />
-          Nuevo Producto
-        </Button>
+        <CreateProductModal />
       </div>
 
       {/* Category Filters */}
@@ -89,7 +87,7 @@ export default function Products() {
 
               <div className="mt-4 flex items-center justify-between">
                 <span className="text-lg font-bold text-primary">
-                  ${product.price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                  S/ {product.price.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
                 </span>
               </div>
 

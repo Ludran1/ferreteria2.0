@@ -9,6 +9,14 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 import { usePrint } from '@/hooks/usePrint';
 import { PrintableDocument } from '@/components/print/PrintableDocument';
@@ -23,6 +31,37 @@ export default function Quotes() {
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const { toast } = useToast();
   const { printRef, handlePrint } = usePrint();
+
+  // Custom Item State
+  const [showCustomItemModal, setShowCustomItemModal] = useState(false);
+  const [customItemName, setCustomItemName] = useState('');
+  const [customItemPrice, setCustomItemPrice] = useState('');
+
+  const handleAddCustomItem = () => {
+    if (!customItemName || !customItemPrice) return;
+
+    const price = parseFloat(customItemPrice);
+    if (isNaN(price)) return;
+
+    const manualProduct: Product = {
+      id: `manual-${Date.now()}`,
+      name: customItemName,
+      price: price,
+      description: 'Producto agregado manualmente',
+      category: 'Manual',
+      sku: 'MANUAL',
+    };
+
+    addToCart(manualProduct);
+    setShowCustomItemModal(false);
+    setCustomItemName('');
+    setCustomItemPrice('');
+    
+    toast({
+      title: 'Item agregado',
+      description: `${customItemName} añadido a la cotización`,
+    });
+  };
 
   const handleBarcodeScan = useCallback((barcode: string) => {
     const product = mockProducts.find(
@@ -82,6 +121,18 @@ export default function Quotes() {
     );
   };
 
+  const setItemQuantity = (productId: string, quantity: number) => {
+    setCartItems((prev) =>
+      prev
+        .map((item) =>
+          item.product.id === productId
+            ? { ...item, quantity: Math.max(0, quantity) }
+            : item
+        )
+        .filter((item) => item.quantity > 0)
+    );
+  };
+
   const updateCustomPrice = (productId: string, newPrice: string) => {
     const priceValue = parseFloat(newPrice);
     setCartItems((prev) =>
@@ -133,7 +184,7 @@ export default function Quotes() {
       // Show success toast and clear form
       toast({
         title: 'Cotización guardada',
-        description: `Cotización para ${customerName} por $${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
+        description: `Cotización para ${customerName} por S/ ${total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
       });
       
       setCartItems([]);
@@ -157,9 +208,9 @@ export default function Quotes() {
 
   return (
     <MainLayout title="Cotizaciones" subtitle="Crea y gestiona cotizaciones">
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-5">
         {/* Products Panel */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-3 space-y-6">
           {/* Search with Barcode indicator */}
           <div className="flex gap-3">
             <div className="relative flex-1">
@@ -172,6 +223,14 @@ export default function Quotes() {
               />
             </div>
             <Button
+              variant="outline"
+              onClick={() => setShowCustomItemModal(true)}
+              title="Agregar item manual"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Manual
+            </Button>
+            <Button
               variant={scannerActive ? 'default' : 'secondary'}
               size="icon"
               onClick={() => setScannerActive(!scannerActive)}
@@ -180,6 +239,47 @@ export default function Quotes() {
               <ScanBarcode className="h-5 w-5" />
             </Button>
           </div>
+
+          <Dialog open={showCustomItemModal} onOpenChange={setShowCustomItemModal}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Agregar Item Manual</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Descripción / Producto</Label>
+                  <Input
+                    id="name"
+                    value={customItemName}
+                    onChange={(e) => setCustomItemName(e.target.value)}
+                    placeholder="Ej. Servicio de Flete"
+                    autoFocus
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="price">Precio Unitario</Label>
+                  <div className="relative">
+                     <span className="absolute left-3 top-2.5 text-muted-foreground">S/</span>
+                     <Input
+                      id="price"
+                      type="number"
+                      value={customItemPrice}
+                      onChange={(e) => setCustomItemPrice(e.target.value)}
+                      className="pl-8"
+                      placeholder="0.00"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleAddCustomItem();
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowCustomItemModal(false)}>Cancelar</Button>
+                <Button onClick={handleAddCustomItem}>Agregar</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {scannerActive && (
             <div className="flex items-center gap-2 rounded-lg bg-success/10 px-4 py-2 text-sm text-success">
@@ -203,7 +303,7 @@ export default function Quotes() {
                   <p className="font-medium text-foreground truncate">{product.name}</p>
                   <p className="text-sm text-muted-foreground">{product.sku}</p>
                   <p className="font-bold text-primary">
-                    ${product.price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    S/ {product.price.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
                   </p>
                 </div>
               </button>
@@ -227,7 +327,7 @@ export default function Quotes() {
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-foreground">
-                      ${quote.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                      S/ {quote.total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
                     </p>
                     <span
                       className={cn(
@@ -249,22 +349,21 @@ export default function Quotes() {
         </div>
 
         {/* Cart Panel */}
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-2">
           <div className="sticky top-24 rounded-2xl bg-card p-6 shadow-lg">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary">
-                <FileText className="h-5 w-5 text-primary-foreground" />
-              </div>
               <div>
-                <h3 className="font-semibold text-foreground">Nueva Cotización</h3>
-                <p className="text-sm text-muted-foreground">
-                  {cartItems.length} productos
-                </p>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-foreground">Nueva Cotización</h3>
+                  <span className="text-sm text-muted-foreground">
+                    ({cartItems.length} productos)
+                  </span>
+                </div>
               </div>
             </div>
 
             {/* Customer Info */}
-            <div className="mt-6 space-y-3">
+            <div className="mt-6 grid grid-cols-2 gap-3">
               <Input
                 placeholder="Nombre del cliente *"
                 value={customerName}
@@ -278,7 +377,7 @@ export default function Quotes() {
             </div>
 
             {/* Cart Items */}
-            <div className="mt-6 max-h-80 space-y-3 overflow-y-auto">
+            <div className="mt-6 max-h-[500px] space-y-3 overflow-y-auto pr-2">
               {cartItems.length === 0 ? (
                 <p className="text-center text-sm text-muted-foreground py-8">
                   Agrega productos a la cotización
@@ -294,12 +393,24 @@ export default function Quotes() {
                         <p className="text-sm font-medium text-foreground truncate">
                           {item.product.name}
                         </p>
-                        
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 shrink-0"
+                        onClick={() => removeFromCart(item.product.id)}
+                      >
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </div>
+                    
+                    <div className="mt-2 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
                         {/* Price editing */}
-                        <div className="mt-1 flex items-center gap-2">
+                        <div className="flex items-center gap-2">
                           {editingPriceId === item.product.id ? (
                             <div className="flex items-center gap-1">
-                              <span className="text-xs text-muted-foreground">$</span>
+                              <span className="text-xs text-muted-foreground">S/</span>
                               <Input
                                 type="number"
                                 step="0.01"
@@ -331,52 +442,52 @@ export default function Quotes() {
                                   ? 'text-primary font-medium'
                                   : ''
                               )}>
-                                ${getItemPrice(item).toLocaleString('es-MX')} c/u
+                                S/ {getItemPrice(item).toLocaleString('es-PE')} c/u
                               </span>
                               <Edit2 className="h-3 w-3" />
                             </button>
                           )}
                           {item.customPrice !== undefined && item.customPrice !== item.product.price && (
                             <span className="text-xs text-muted-foreground line-through">
-                              ${item.product.price.toLocaleString('es-MX')}
+                              S/ {item.product.price.toLocaleString('es-PE')}
                             </span>
                           )}
                         </div>
+
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 rounded-full"
+                            onClick={() => updateQuantity(item.product.id, -1)}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <Input
+                            type="number"
+                            className="h-7 w-12 px-1 text-center text-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            value={item.quantity}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value);
+                              if (!isNaN(val)) setItemQuantity(item.product.id, val);
+                            }}
+                            onBlur={(e) => {
+                               if (!e.target.value || parseInt(e.target.value) === 0) setItemQuantity(item.product.id, 1);
+                            }}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 rounded-full"
+                            onClick={() => updateQuantity(item.product.id, 1)}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 shrink-0"
-                        onClick={() => removeFromCart(item.product.id)}
-                      >
-                        <Trash2 className="h-3 w-3 text-destructive" />
-                      </Button>
-                    </div>
-                    
-                    <div className="mt-2 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => updateQuantity(item.product.id, -1)}
-                        >
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        <span className="w-6 text-center text-sm font-medium">
-                          {item.quantity}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => updateQuantity(item.product.id, 1)}
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                      </div>
+
                       <span className="text-sm font-bold text-foreground">
-                        ${(getItemPrice(item) * item.quantity).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                        S/ {(getItemPrice(item) * item.quantity).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
                   </div>
@@ -385,23 +496,12 @@ export default function Quotes() {
             </div>
 
             {/* Total */}
-            <div className="mt-6 border-t border-border pt-4">
+
+            <div className="mt-3 border-t border-border pt-2">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span className="font-medium">
-                  ${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-              <div className="mt-2 flex items-center justify-between">
-                <span className="text-muted-foreground">IVA (16%)</span>
-                <span className="font-medium">
-                  ${(total * 0.16).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-              <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
                 <span className="text-lg font-semibold">Total</span>
                 <span className="text-xl font-bold text-primary">
-                  ${(total * 1.16).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                  S/ {(total * 1.16).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
                 </span>
               </div>
             </div>

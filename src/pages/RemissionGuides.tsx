@@ -8,9 +8,11 @@ import { es } from 'date-fns/locale';
 import { Plus, Search, Truck, MapPin, Package, Printer, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { CreateRemissionModal } from '@/components/remission/CreateRemissionModal';
+import { Sale } from '@/types';
 
 // Mock remission guides based on sales
-const mockGuides = mockSales.slice(0, 2).map((sale, index) => ({
+const initialMockGuides = mockSales.slice(0, 2).map((sale, index) => ({
   id: `GR-00${index + 1}`,
   saleId: sale.id,
   customerName: sale.customerName,
@@ -22,37 +24,54 @@ const mockGuides = mockSales.slice(0, 2).map((sale, index) => ({
 
 export default function RemissionGuides() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [showNewGuide, setShowNewGuide] = useState(false);
-  const [newGuide, setNewGuide] = useState({
-    customerName: '',
-    address: '',
-    saleId: '',
-  });
+  const [guides, setGuides] = useState(initialMockGuides);
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [newAddress, setNewAddress] = useState('');
+  
   const { toast } = useToast();
 
-  const filteredGuides = mockGuides.filter(
+  const filteredGuides = guides.filter(
     (guide) =>
       guide.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       guide.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleCreateGuide = () => {
-    if (!newGuide.customerName || !newGuide.address) {
+  const handleSaleSelected = (sale: Sale) => {
+    setSelectedSale(sale);
+    setShowAddressModal(true);
+  };
+
+  const confirmCreateGuide = () => {
+    if (!newAddress || !selectedSale) {
       toast({
-        title: 'Error',
-        description: 'Completa todos los campos requeridos',
-        variant: 'destructive',
+         title: 'Error',
+         description: 'Ingresa la dirección de entrega',
+         variant: 'destructive'
       });
       return;
     }
 
+    const newGuide = {
+      id: `GR-${Date.now().toString().slice(-6)}`,
+      saleId: selectedSale.id,
+      customerName: selectedSale.customerName,
+      address: newAddress,
+      items: selectedSale.items,
+      date: new Date(),
+      status: 'pending' as const,
+    };
+
+    setGuides([newGuide, ...guides]);
+    
     toast({
       title: 'Guía creada',
-      description: `Guía de remisión para ${newGuide.customerName}`,
+      description: `Guía para ${selectedSale.customerName} generada exitosamente`,
     });
 
-    setShowNewGuide(false);
-    setNewGuide({ customerName: '', address: '', saleId: '' });
+    setShowAddressModal(false);
+    setNewAddress('');
+    setSelectedSale(null);
   };
 
   return (
@@ -68,10 +87,7 @@ export default function RemissionGuides() {
             className="pl-10"
           />
         </div>
-        <Button className="gap-2" onClick={() => setShowNewGuide(true)}>
-          <Plus className="h-4 w-4" />
-          Nueva Guía
-        </Button>
+        <CreateRemissionModal onGuideCreated={handleSaleSelected} />
       </div>
 
       {/* Stats */}
@@ -83,7 +99,7 @@ export default function RemissionGuides() {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Total de Guías</p>
-              <p className="text-xl font-bold text-foreground">{mockGuides.length}</p>
+              <p className="text-xl font-bold text-foreground">{guides.length}</p>
             </div>
           </div>
         </div>
@@ -95,7 +111,7 @@ export default function RemissionGuides() {
             <div>
               <p className="text-sm text-muted-foreground">Pendientes</p>
               <p className="text-xl font-bold text-foreground">
-                {mockGuides.filter((g) => g.status === 'pending').length}
+                {guides.filter((g) => g.status === 'pending').length}
               </p>
             </div>
           </div>
@@ -108,41 +124,38 @@ export default function RemissionGuides() {
             <div>
               <p className="text-sm text-muted-foreground">Entregadas</p>
               <p className="text-xl font-bold text-foreground">
-                {mockGuides.filter((g) => g.status === 'delivered').length}
+                {guides.filter((g) => g.status === 'delivered').length}
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* New Guide Form */}
-      {showNewGuide && (
-        <div className="mt-6 animate-fade-in rounded-2xl bg-card p-6 shadow-lg">
-          <h3 className="text-lg font-semibold text-foreground">Nueva Guía de Remisión</h3>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <Input
-              placeholder="Nombre del cliente *"
-              value={newGuide.customerName}
-              onChange={(e) => setNewGuide({ ...newGuide, customerName: e.target.value })}
-            />
-            <Input
-              placeholder="ID de Venta (opcional)"
-              value={newGuide.saleId}
-              onChange={(e) => setNewGuide({ ...newGuide, saleId: e.target.value })}
-            />
-            <div className="md:col-span-2">
+      {/* Address Confirmation Modal (Simple inline for now) */}
+      {showAddressModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-foreground">Confirmar Entrega</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Para venta: {selectedSale?.id} - {selectedSale?.customerName}
+            </p>
+            
+            <div className="mt-4 space-y-4">
               <Input
                 placeholder="Dirección de entrega *"
-                value={newGuide.address}
-                onChange={(e) => setNewGuide({ ...newGuide, address: e.target.value })}
+                value={newAddress}
+                onChange={(e) => setNewAddress(e.target.value)}
+                autoFocus
               />
+              <div className="flex gap-3 justify-end">
+                <Button variant="outline" onClick={() => setShowAddressModal(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={confirmCreateGuide}>
+                  Generar Guía
+                </Button>
+              </div>
             </div>
-          </div>
-          <div className="mt-4 flex gap-3">
-            <Button onClick={handleCreateGuide}>Crear Guía</Button>
-            <Button variant="outline" onClick={() => setShowNewGuide(false)}>
-              Cancelar
-            </Button>
           </div>
         </div>
       )}

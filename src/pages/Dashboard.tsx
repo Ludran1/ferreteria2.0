@@ -11,7 +11,7 @@ export default function Dashboard() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Ventas del Día"
-          value="$10,060.00"
+          value="S/ 10,060.00"
           change="+12.5% vs ayer"
           changeType="positive"
           icon={DollarSign}
@@ -35,7 +35,7 @@ export default function Dashboard() {
         />
         <StatCard
           title="Ticket Promedio"
-          value="$419.17"
+          value="S/ 419.17"
           change="+5.2% vs semana"
           changeType="positive"
           icon={TrendingUp}
