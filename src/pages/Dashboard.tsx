@@ -2,65 +2,115 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { RecentSales } from '@/components/dashboard/RecentSales';
 import { QuickActions } from '@/components/dashboard/QuickActions';
-import { DollarSign, ShoppingCart, Package, TrendingUp } from 'lucide-react';
+import { SalesChart } from '@/components/dashboard/SalesChart';
+import { DollarSign, ShoppingCart, Package, TrendingUp, Calendar } from 'lucide-react';
 import { useSales } from '@/hooks/useTransactions';
-import { isToday, startOfDay, subDays, isAfter } from 'date-fns';
+import { isToday, startOfDay, subDays, isAfter, isSameMonth, subMonths, startOfMonth, endOfMonth } from 'date-fns';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
 
 export default function Dashboard() {
   const { sales, isLoading } = useSales();
+  const [viewMode, setViewMode] = useState<'day' | 'month'>('day');
 
   // Calculations
-  const todaySales = (sales || []).filter(s => isToday(new Date(s.date)));
-  const totalSalesToday = todaySales.reduce((acc, s) => acc + s.total, 0);
-  const transactionCountToday = todaySales.length;
+  const now = new Date();
 
-  const productsSoldToday = todaySales.reduce((acc, s) => 
+  // 1. Current Period Sales
+  const currentPeriodSales = (sales || []).filter(s => {
+      const date = new Date(s.date);
+      if (viewMode === 'day') return isToday(date);
+      return isSameMonth(date, now);
+  });
+
+  const totalSales = currentPeriodSales.reduce((acc, s) => acc + s.total, 0);
+  const transactionCount = currentPeriodSales.length;
+
+  const productsSold = currentPeriodSales.reduce((acc, s) => 
     acc + s.items.reduce((sum, item) => sum + item.quantity, 0), 0
   );
 
-  // Ticket average (weekly)
-  const weekStart = subDays(new Date(), 7);
-  const weeklySales = (sales || []).filter(s => isAfter(new Date(s.date), weekStart));
-  const weeklyTotal = weeklySales.reduce((acc, s) => acc + s.total, 0);
-  const averageTicket = weeklySales.length > 0 ? weeklyTotal / weeklySales.length : 0;
+  // 2. Ticket Average
+  // For Day: Last 7 days to give a meaningful trend, or just today? usually standard is trend.
+  // For Month: This Month average.
+  const averageTicket = transactionCount > 0 ? totalSales / transactionCount : 0;
 
-  // Comparison (mock for now or calculated vs yesterday)
-  const yesterdayStart = subDays(startOfDay(new Date()), 1);
-  const yesterdaySales = (sales || []).filter(s => {
-      const d = new Date(s.date);
-      return d >= yesterdayStart && d < startOfDay(new Date());
-  });
-  const totalSalesYesterday = yesterdaySales.reduce((acc, s) => acc + s.total, 0);
+  // 3. Comparison Logic
+  let previousPeriodSales: typeof sales = [];
+  let comparisonLabel = "";
+
+  if (viewMode === 'day') {
+      const yesterdayStart = subDays(startOfDay(now), 1);
+      const yesterdayEnd = startOfDay(now); // Up to start of today
+      previousPeriodSales = (sales || []).filter(s => {
+          const d = new Date(s.date);
+          return d >= yesterdayStart && d < yesterdayEnd;
+      });
+      comparisonLabel = "vs ayer";
+  } else {
+      const lastMonthStart = startOfMonth(subMonths(now, 1));
+      const lastMonthEnd = endOfMonth(subMonths(now, 1));
+      previousPeriodSales = (sales || []).filter(s => {
+          const d = new Date(s.date);
+          return d >= lastMonthStart && d <= lastMonthEnd;
+      });
+      comparisonLabel = "vs mes anterior";
+  }
+
+  const totalSalesPrevious = previousPeriodSales.reduce((acc, s) => acc + s.total, 0);
   
   // % Change calculation
-  const salesChange = totalSalesYesterday > 0 
-    ? ((totalSalesToday - totalSalesYesterday) / totalSalesYesterday) * 100 
+  const salesChange = totalSalesPrevious > 0 
+    ? ((totalSales - totalSalesPrevious) / totalSalesPrevious) * 100 
     : 0;
 
   return (
-    <MainLayout title="Dashboard" subtitle="Bienvenido a FerrePOS">
+    <MainLayout title="Dashboard" subtitle="Resumen de actividad">
+      
+      {/* Filter Toggle */}
+      <div className="flex justify-end mb-6">
+          <div className="flex p-1 bg-secondary rounded-lg">
+             <Button
+                variant={viewMode === 'day' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('day')}
+                className="text-xs"
+              >
+                  Diario
+              </Button>
+              <Button
+                variant={viewMode === 'month' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('month')}
+                className="text-xs"
+              >
+                  Mensual
+              </Button>
+          </div>
+      </div>
+
       {/* Stats Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Ventas del Día"
-          value={`S/ ${totalSalesToday.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
-          change={`${salesChange.toFixed(1)}% vs ayer`}
+          title={viewMode === 'day' ? "Ventas del Día" : "Ventas del Mes"}
+          value={`S/ ${totalSales.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
+          change={`${salesChange.toFixed(1)}% ${comparisonLabel}`}
           changeType={salesChange >= 0 ? "positive" : "negative"}
           icon={DollarSign}
           iconColor="primary"
         />
         <StatCard
           title="Transacciones"
-          value={transactionCountToday.toString()}
-          change="Hoy"
+          value={transactionCount.toString()}
+          change={viewMode === 'day' ? "Hoy" : "Este Mes"}
           changeType="neutral"
           icon={ShoppingCart}
           iconColor="success"
         />
         <StatCard
           title="Productos Vendidos"
-          value={productsSoldToday.toString()}
-          change="Unidades hoy"
+          value={productsSold.toString()}
+          change="Unidades"
           changeType="neutral"
           icon={Package}
           iconColor="warning"
@@ -68,8 +118,8 @@ export default function Dashboard() {
         <StatCard
           title="Ticket Promedio"
           value={`S/ ${averageTicket.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
-          change="Últimos 7 días"
-          changeType="positive"
+          change={viewMode === 'day' ? "Promedio hoy" : "Promedio mes"}
+          changeType="neutral"
           icon={TrendingUp}
           iconColor="accent"
         />
@@ -77,14 +127,19 @@ export default function Dashboard() {
 
       {/* Main Content Grid */}
       <div className="mt-8 grid gap-6 lg:grid-cols-3">
-        {/* Recent Sales - Takes 2 columns */}
+        {/* Comparison Chart */}
         <div className="lg:col-span-2">
-          <RecentSales />
+            <SalesChart />
+        </div>
+        
+        {/* Right Column (Quick Actions) */}
+         <div className="space-y-6">
+          <QuickActions />
         </div>
 
-        {/* Right Column */}
-        <div className="space-y-6">
-          <QuickActions />
+        {/* Recent Sales - Takes full width below chart on desktop or 2 cols */}
+        <div className="lg:col-span-3">
+          <RecentSales />
         </div>
       </div>
     </MainLayout>
