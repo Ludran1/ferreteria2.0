@@ -28,6 +28,7 @@ import { useNavigate } from 'react-router-dom';
 
 // Hooks
 import { useQuotes, useSales } from '@/hooks/useTransactions';
+import { useBusinessSettings } from '@/hooks/useBusinessSettings';
 
 const paymentIcons = {
   cash: Banknote,
@@ -59,6 +60,7 @@ export default function Sales() {
 
   const { printRef, handlePrint } = usePrint();
   const { toast } = useToast();
+  const { settings } = useBusinessSettings();
 
   // Data Fetching
   const { quotes, isLoading: loadingQuotes } = useQuotes();
@@ -167,8 +169,8 @@ export default function Sales() {
 
   // Helper for generic print data
   const getSalePrintData = (sale: Sale): PrintableDocumentData => ({
-    type: 'sale', // Force 'sale' for print layout or adjust type if needed
-    documentNumber: sale.id,
+    type: 'sale', 
+    documentNumber: sale.invoiceNumber || sale.id.slice(0, 8),
     date: new Date(sale.date),
     customerName: sale.customerName,
     items: sale.items,
@@ -306,7 +308,11 @@ export default function Sales() {
                         )}>
                             {item.type === 'quote' ? 'COT' : 'VTA'}
                         </span>
-                        <span className="font-medium text-foreground">{item.id.slice(0,8)}...</span>
+                        <span className="font-medium text-foreground">
+                            {item.type === 'sale' 
+                                ? (item.invoiceNumber || item.id.slice(0,8)) 
+                                : ((item as any).quoteNumber || item.id.slice(0,8))}
+                        </span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -406,7 +412,12 @@ export default function Sales() {
                     <div ref={receiptRef} className="space-y-4 p-2 bg-white rounded-lg">
                         <div className="flex justify-between border-b pb-2">
                             <div>
-                                <p className="font-bold text-lg text-black">{viewSale.id.slice(0,8)}</p>
+                                <p className="font-bold text-lg text-black">
+                                    {(viewSale as any).type === 'sale' 
+                                        ? ((viewSale as Sale).invoiceNumber || viewSale.id.slice(0,8))
+                                        : ((viewSale as any).quoteNumber || viewSale.id.slice(0,8))
+                                    }
+                                </p>
                                 <p className="text-sm text-muted-foreground">{format(new Date(viewSale.date), 'dd MMM yyyy, HH:mm', { locale: es })}</p>
                             </div>
                             <div className="text-right">
@@ -457,7 +468,7 @@ export default function Sales() {
       {/* Hidden Print Component */}
       {saleToPrint && (
         <div className="fixed left-[-9999px] top-0">
-          <PrintableDocument ref={printRef} data={getSalePrintData(saleToPrint)} />
+          <PrintableDocument ref={printRef} data={getSalePrintData(saleToPrint)} settings={settings} />
         </div>
       )}
     </MainLayout>

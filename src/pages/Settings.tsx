@@ -104,13 +104,13 @@ export default function Settings() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-foreground">RFC</label>
+              <label className="text-sm font-medium text-foreground">RUC</label>
               <Input 
                 className="mt-1" 
                 name="rfc"
                 value={formData.rfc}
                 onChange={handleChange}
-                placeholder="RFC del negocio"
+                placeholder="RUC del negocio"
               />
             </div>
             <div className="md:col-span-2">

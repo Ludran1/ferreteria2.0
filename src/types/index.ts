@@ -25,6 +25,7 @@ export interface Quote {
   date: Date;
   status: 'pending' | 'approved' | 'rejected' | 'converted';
   total: number;
+  quoteNumber?: string;
 }
 
 export interface Sale {
@@ -34,6 +35,7 @@ export interface Sale {
   date: Date;
   total: number;
   paymentMethod: 'cash' | 'card' | 'transfer' | 'yape' | 'plin';
+  paymentType?: 'contado' | 'credito';
   invoiceNumber?: string;
 }
 
@@ -67,6 +69,7 @@ export interface PrintableDocumentData {
   tax: number;
   total: number;
   paymentMethod?: 'cash' | 'card' | 'transfer' | 'yape' | 'plin';
+  paymentType?: 'contado' | 'credito';
 }
 
 export interface UserMetadata {

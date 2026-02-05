@@ -2,11 +2,12 @@ import { forwardRef } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { PrintableDocumentData } from '@/types';
+import { BusinessSettings } from '@/hooks/useBusinessSettings';
 import { businessInfo as defaultInfo, printTerms } from '@/config/businessInfo';
-import { useBusinessSettings } from '@/hooks/useBusinessSettings';
 
 interface PrintableDocumentProps {
   data: PrintableDocumentData;
+  settings?: BusinessSettings | null;
 }
 
 const paymentMethodLabels = {
@@ -18,11 +19,11 @@ const paymentMethodLabels = {
 };
 
 export const PrintableDocument = forwardRef<HTMLDivElement, PrintableDocumentProps>(
-  ({ data }, ref) => {
+  ({ data, settings }, ref) => {
     const isQuote = data.type === 'quote';
     const terms = isQuote ? printTerms.quote : printTerms.sale;
     
-    const { settings } = useBusinessSettings();
+    // Use passed settings or fallback to default
     const info = settings || defaultInfo;
 
     return (
@@ -41,7 +42,6 @@ export const PrintableDocument = forwardRef<HTMLDivElement, PrintableDocumentPro
           <h1 className="text-base font-bold uppercase">{info.name}</h1>
           <p className="text-[10px] mt-1">{info.address}</p>
           <p className="text-[10px]">Tel: {info.phone}</p>
-          <p className="text-[10px]">RFC: {info.rfc}</p>
           
           <div className="mt-2">
             <p className="font-bold">
@@ -120,7 +120,7 @@ export const PrintableDocument = forwardRef<HTMLDivElement, PrintableDocumentPro
             </div>
             {data.paymentMethod && (
                 <div className="mt-1 text-center text-[10px]">
-                Pago: {paymentMethodLabels[data.paymentMethod]}
+                Pago: {paymentMethodLabels[data.paymentMethod]} {data.paymentType ? `(${data.paymentType})` : ''}
                 </div>
             )}
             </div>
@@ -133,7 +133,6 @@ export const PrintableDocument = forwardRef<HTMLDivElement, PrintableDocumentPro
           ) : (
              <p>Gracias por su compra</p>
           )}
-          <p className="mt-1">*** COPIA CLIENTE ***</p>
         </div>
       </div>
     );

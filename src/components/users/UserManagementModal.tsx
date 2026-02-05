@@ -16,7 +16,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabaseClient';
 import { Plus, User as UserIcon, Loader2, RefreshCw } from 'lucide-react';
 
 interface UserManagementModalProps {

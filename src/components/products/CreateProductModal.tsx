@@ -24,15 +24,16 @@ import { DEFAULT_CATEGORIES } from '@/constants/data';
 interface CreateProductModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onProductCreated?: (product: Product) => void;
+  onProductCreated?: (product: any) => void;
+  onProductUpdated?: (product: Product) => void;
   categories?: string[];
+  productToEdit?: Product | null;
 }
 
-export function CreateProductModal({ open, onOpenChange, onProductCreated, categories = DEFAULT_CATEGORIES }: CreateProductModalProps) {
+export function CreateProductModal({ open, onOpenChange, onProductCreated, categories = DEFAULT_CATEGORIES, productToEdit, ...props }: CreateProductModalProps) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   
-  // Form State
   const [formData, setFormData] = useState({
     name: '',
     sku: '',
@@ -45,21 +46,33 @@ export function CreateProductModal({ open, onOpenChange, onProductCreated, categ
 
   const [newBarcode, setNewBarcode] = useState('');
 
-  // Reset form when modal opens
+  // Reset or Populate form when modal opens
   useEffect(() => {
     if (open) {
-      setFormData({
-        name: '',
-        sku: '',
-        barcode: '',
-        additionalBarcodes: [],
-        category: '',
-        price: '',
-        description: ''
-      });
+      if (productToEdit) {
+          setFormData({
+            name: productToEdit.name,
+            sku: productToEdit.sku,
+            barcode: productToEdit.barcode || '',
+            additionalBarcodes: productToEdit.additionalBarcodes || [],
+            category: productToEdit.category,
+            price: productToEdit.price.toString(),
+            description: productToEdit.description
+          });
+      } else {
+          setFormData({
+            name: '',
+            sku: '',
+            barcode: '',
+            additionalBarcodes: [],
+            category: '',
+            price: '',
+            description: ''
+          });
+      }
       setNewBarcode('');
     }
-  }, [open]);
+  }, [open, productToEdit]);
 
   const handleAddBarcode = () => {
     if (newBarcode.trim()) {
@@ -82,9 +95,6 @@ export function CreateProductModal({ open, onOpenChange, onProductCreated, categ
     e.preventDefault();
     setLoading(true);
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
     // Basic Validation
     if (!formData.name || !formData.price || !formData.category) {
       toast({
@@ -96,18 +106,22 @@ export function CreateProductModal({ open, onOpenChange, onProductCreated, categ
       return;
     }
 
-    console.log('Product Created:', formData);
-    toast({
-      title: "Producto creado",
-      description: "Producto creado exitosamente"
-    });
-    
-    setLoading(false);
-    onOpenChange(false);
-    
-    if (onProductCreated) {
-        // Cast to any/Product for property matching since specific ID logic isn't here
-        onProductCreated({ ...formData, id: Date.now().toString(), price: Number(formData.price) } as unknown as Product);
+    try {
+        if (productToEdit) {
+            // Update
+            // @ts-ignore
+             if (props.onProductUpdated) await props.onProductUpdated({ ...productToEdit, ...formData, price: Number(formData.price) });
+        } else {
+             // Create
+             // @ts-ignore
+             if (onProductCreated) await onProductCreated({ ...formData, price: Number(formData.price) });
+        }
+        
+        onOpenChange(false);
+    } catch (e) {
+        console.error(e);
+    } finally {
+        setLoading(false);
     }
   };
 
@@ -124,7 +138,7 @@ export function CreateProductModal({ open, onOpenChange, onProductCreated, categ
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] overflow-y-auto max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>Crear Nuevo Producto</DialogTitle>
+          <DialogTitle>{productToEdit ? 'Editar Producto' : 'Crear Nuevo Producto'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="grid gap-4 py-4">
           <div className="grid gap-2">
@@ -251,7 +265,7 @@ export function CreateProductModal({ open, onOpenChange, onProductCreated, categ
               Cancelar
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? 'Guardando...' : 'Guardar Producto'}
+              {loading ? 'Guardando...' : (productToEdit ? 'Actualizar Producto' : 'Guardar Producto')}
             </Button>
           </div>
         </form>

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Wrench } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabaseClient';
 
 export default function Login() {
   const [email, setEmail] = useState('');
