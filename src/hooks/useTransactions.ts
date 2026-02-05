@@ -5,11 +5,24 @@ import { toast } from 'sonner';
 
 // Helper to transform database items to frontend items
 const transformItems = (items: any[]): QuoteItem[] => {
-  return items.map((item) => ({
-    product: item.products, // Joined product data
-    quantity: item.quantity,
-    customPrice: item.custom_price || item.price_at_sale,
-  }));
+  return items.map((item) => {
+    // If product exists (normal item), use it.
+    // If product is null (manual item), create a "Virtual" product from product_name
+    const productData = item.products || {
+      id: 'manual',
+      name: item.product_name || 'Item Manual',
+      description: 'Item agregado manualmente',
+      price: item.price_at_sale || item.custom_price || 0,
+      category: 'Manual',
+      sku: 'MANUAL'
+    };
+
+    return {
+      product: productData, 
+      quantity: item.quantity,
+      customPrice: item.custom_price || item.price_at_sale,
+    };
+  });
 };
 
 export function useQuotes() {
@@ -26,6 +39,7 @@ export function useQuotes() {
           quote_items (
             quantity,
             custom_price,
+            product_name,
             products (*)
           )
         `)
@@ -64,12 +78,17 @@ export function useQuotes() {
       if (quoteError) throw quoteError;
 
       // 2. Create Items
-      const itemsToInsert = quote.items.map((item) => ({
-        quote_id: newQuote.id,
-        product_id: item.product.id,
-        quantity: item.quantity,
-        custom_price: item.customPrice,
-      }));
+      // Handle Manual Items (no ID) vs Product Items
+      const itemsToInsert = quote.items.map((item) => {
+        const isManual = item.product.id.startsWith('manual');
+        return {
+          quote_id: newQuote.id,
+          product_id: isManual ? null : item.product.id,
+          product_name: isManual ? item.product.name : null, // Store name if manual
+          quantity: item.quantity,
+          custom_price: item.customPrice,
+        };
+      });
 
       const { error: itemsError } = await supabase
         .from('quote_items')
@@ -102,6 +121,7 @@ export function useSales() {
           sale_items (
             quantity,
             price_at_sale,
+            product_name,
             products (*)
           )
         `)
@@ -141,12 +161,16 @@ export function useSales() {
      if (saleError) throw saleError;
 
      // 2. Create Items
-     const itemsToInsert = sale.items.map((item) => ({
-       sale_id: newSale.id,
-       product_id: item.product.id,
-       quantity: item.quantity,
-       price_at_sale: item.customPrice || item.product.price,
-     }));
+     const itemsToInsert = sale.items.map((item) => {
+        const isManual = item.product.id.startsWith('manual');
+        return {
+          sale_id: newSale.id,
+          product_id: isManual ? null : item.product.id,
+          product_name: isManual ? item.product.name : null,
+          quantity: item.quantity,
+          price_at_sale: item.customPrice || item.product.price,
+        };
+     });
 
      const { error: itemsError } = await supabase
        .from('sale_items')
