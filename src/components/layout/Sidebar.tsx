@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Wrench,
   LogOut,
+  Wallet,
 } from 'lucide-react';
 
 // IDs correspond to the valid sections in RBAC
@@ -21,6 +22,7 @@ const menuItems = [
   { id: 'productos', icon: Package, label: 'Productos', path: '/productos' },
   { id: 'cotizaciones', icon: FileText, label: 'Cotizaciones', path: '/cotizaciones' },
   { id: 'ventas', icon: History, label: 'Historial de Ventas', path: '/ventas' },
+  { id: 'creditos', icon: Wallet, label: 'Créditos y Clientes', path: '/creditos' },
   { id: 'guias', icon: Truck, label: 'Guías de Remisión', path: '/guias' },
   { id: 'configuracion', icon: Settings, label: 'Configuración', path: '/configuracion' },
 ];

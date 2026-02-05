@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import Index from "./pages/Index";
 import Products from "./pages/Products";
 import Quotes from "./pages/Quotes";
+import Credits from "./pages/Credits";
 import Sales from "./pages/Sales";
 import RemissionGuides from "./pages/RemissionGuides";
 import Settings from "./pages/Settings";
@@ -44,6 +45,7 @@ const App = () => (
             <Route path="/cotizaciones" element={<ProtectedRoute><Quotes /></ProtectedRoute>} />
             <Route path="/ventas" element={<ProtectedRoute><Sales /></ProtectedRoute>} />
             <Route path="/guias" element={<ProtectedRoute><RemissionGuides /></ProtectedRoute>} />
+            <Route path="/creditos" element={<ProtectedRoute><Credits /></ProtectedRoute>} />
             <Route path="/configuracion" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             
             <Route path="*" element={<NotFound />} />

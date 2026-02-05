@@ -36,7 +36,30 @@ export interface Sale {
   total: number;
   paymentMethod: 'cash' | 'card' | 'transfer' | 'yape' | 'plin';
   paymentType?: 'contado' | 'credito';
+  clientId?: string;
+  balance?: number;
   invoiceNumber?: string;
+}
+
+export interface Client {
+  id: string;
+  name: string;
+  documentType?: string;
+  documentId?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  notes?: string;
+}
+
+export interface Payment {
+  id: string;
+  clientId: string;
+  saleId?: string;
+  amount: number;
+  paymentMethod: string;
+  date: Date;
+  notes?: string;
 }
 
 export interface RemissionGuide {
