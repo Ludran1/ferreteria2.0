@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Download, Eye, CreditCard, Banknote, Building2, FileText, Printer, Copy, Camera } from 'lucide-react';
+import { Search, Download, Eye, CreditCard, Banknote, Building2, FileText, Printer, Copy, Camera, Pencil } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { cn } from '@/lib/utils';
 import { Sale, PrintableDocumentData, Quote } from '@/types';
@@ -357,7 +357,7 @@ export default function Sales() {
                           onClick={() => handleCopySale(item)}
                           title="Editar en POS"
                         >
-                          <Copy className="h-4 w-4 text-muted-foreground" />
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
                         </Button>
                         <Button
                           variant="ghost" 

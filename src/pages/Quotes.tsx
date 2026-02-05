@@ -7,6 +7,9 @@ import { Plus, Search, Minus, Trash2, FileText, ShoppingCart, ScanBarcode, Edit2
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
@@ -662,9 +665,9 @@ export default function Quotes() {
                   Agrega productos a la cotización
                 </p>
               ) : (
-                cartItems.map((item) => (
+                cartItems.map((item, index) => (
                   <div
-                    key={item.product.id}
+                    key={`${item.product.id}-${index}`}
                     className="rounded-lg bg-secondary/50 p-3"
                   >
                     <div className="flex items-start justify-between gap-2">
