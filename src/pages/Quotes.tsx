@@ -7,12 +7,16 @@ import { Plus, Search, Minus, Trash2, FileText, ShoppingCart, ScanBarcode, Edit2
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
+} from "@/components/ui/sheet";
 import {
   Select,
   SelectContent,
@@ -500,7 +504,7 @@ export default function Quotes() {
         </div>
 
         {/* Cart Panel */}
-        <div className="lg:col-span-3">
+        <div className="hidden lg:block lg:col-span-3">
           <div className="sticky top-24 rounded-2xl bg-card p-6 shadow-lg">
             <div className="flex items-center gap-3">
               <div className="w-full">
