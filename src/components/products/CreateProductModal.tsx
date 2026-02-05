@@ -1,11 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,15 +19,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Plus, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Product } from '@/types';
-import { mockCategories } from '@/data/mockData';
+import { DEFAULT_CATEGORIES } from '@/constants/data';
 
 interface CreateProductModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onProductCreated?: (product: Product) => void;
   categories?: string[];
 }
 
-export function CreateProductModal({ onProductCreated, categories = mockCategories }: CreateProductModalProps) {
-  const [open, setOpen] = useState(false);
+export function CreateProductModal({ open, onOpenChange, onProductCreated, categories = DEFAULT_CATEGORIES }: CreateProductModalProps) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   
@@ -45,6 +44,22 @@ export function CreateProductModal({ onProductCreated, categories = mockCategori
   });
 
   const [newBarcode, setNewBarcode] = useState('');
+
+  // Reset form when modal opens
+  useEffect(() => {
+    if (open) {
+      setFormData({
+        name: '',
+        sku: '',
+        barcode: '',
+        additionalBarcodes: [],
+        category: '',
+        price: '',
+        description: ''
+      });
+      setNewBarcode('');
+    }
+  }, [open]);
 
   const handleAddBarcode = () => {
     if (newBarcode.trim()) {
@@ -88,19 +103,8 @@ export function CreateProductModal({ onProductCreated, categories = mockCategori
     });
     
     setLoading(false);
-    setOpen(false);
+    onOpenChange(false);
     
-    // Reset form
-    setFormData({
-      name: '',
-      sku: '',
-      barcode: '',
-      additionalBarcodes: [],
-      category: '',
-      price: '',
-      description: ''
-    });
-
     if (onProductCreated) {
         // Cast to any/Product for property matching since specific ID logic isn't here
         onProductCreated({ ...formData, id: Date.now().toString(), price: Number(formData.price) } as unknown as Product);
@@ -117,13 +121,7 @@ export function CreateProductModal({ onProductCreated, categories = mockCategori
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="gap-2">
-          <Plus className="h-4 w-4" />
-          Nuevo Producto
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] overflow-y-auto max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Crear Nuevo Producto</DialogTitle>
@@ -209,7 +207,7 @@ export function CreateProductModal({ onProductCreated, categories = mockCategori
                   <SelectValue placeholder="Seleccionar" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockCategories.map((cat) => (
+                  {categories.map((cat) => (
                     <SelectItem key={cat} value={cat}>
                       {cat}
                     </SelectItem>
@@ -249,7 +247,7 @@ export function CreateProductModal({ onProductCreated, categories = mockCategori
           </div>
 
           <div className="flex justify-end gap-2 mt-4">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
             <Button type="submit" disabled={loading}>

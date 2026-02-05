@@ -2,7 +2,8 @@ import { forwardRef } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { PrintableDocumentData } from '@/types';
-import { businessInfo, printTerms } from '@/config/businessInfo';
+import { businessInfo as defaultInfo, printTerms } from '@/config/businessInfo';
+import { useBusinessSettings } from '@/hooks/useBusinessSettings';
 
 interface PrintableDocumentProps {
   data: PrintableDocumentData;
@@ -20,6 +21,9 @@ export const PrintableDocument = forwardRef<HTMLDivElement, PrintableDocumentPro
   ({ data }, ref) => {
     const isQuote = data.type === 'quote';
     const terms = isQuote ? printTerms.quote : printTerms.sale;
+    
+    const { settings } = useBusinessSettings();
+    const info = settings || defaultInfo;
 
     return (
       <div
@@ -34,10 +38,10 @@ export const PrintableDocument = forwardRef<HTMLDivElement, PrintableDocumentPro
       >
         {/* Header */}
         <div className="text-center border-b border-black pb-2 mb-2">
-          <h1 className="text-base font-bold uppercase">{businessInfo.name}</h1>
-          <p className="text-[10px] mt-1">{businessInfo.address}</p>
-          <p className="text-[10px]">Tel: {businessInfo.phone}</p>
-          <p className="text-[10px]">RFC: {businessInfo.rfc}</p>
+          <h1 className="text-base font-bold uppercase">{info.name}</h1>
+          <p className="text-[10px] mt-1">{info.address}</p>
+          <p className="text-[10px]">Tel: {info.phone}</p>
+          <p className="text-[10px]">RFC: {info.rfc}</p>
           
           <div className="mt-2">
             <p className="font-bold">
@@ -67,9 +71,9 @@ export const PrintableDocument = forwardRef<HTMLDivElement, PrintableDocumentPro
         <div className="mb-2">
           {/* Header Row */}
           <div className="grid grid-cols-12 border-b border-dashed border-black pb-1 mb-1 font-bold text-[10px]">
-            <span className="col-span-6 text-left">Desc</span>
+            <span className={data.type === 'remission' ? "col-span-10 text-left" : "col-span-6 text-left"}>Desc</span>
             <span className="col-span-2 text-center">Cant</span>
-            <span className="col-span-4 text-right">Total</span>
+            {data.type !== 'remission' && <span className="col-span-4 text-right">Total</span>}
           </div>
           
           {/* Data Rows */}
@@ -84,34 +88,43 @@ export const PrintableDocument = forwardRef<HTMLDivElement, PrintableDocumentPro
                 {/* Quantity - Unit Price - Total */}
                 <div className="grid grid-cols-12 items-end">
                    {/* Description/Spacing filler if needed, or just putting qty/price below */}
-                  <div className="col-span-8 flex items-center gap-1 text-gray-600 pl-2">
-                     <span>{item.quantity}</span>
-                     <span className="text-[9px]">x</span>
-                     <span>S/ {unitPrice.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>
+                  <div className={data.type === 'remission' ? "col-span-10 flex items-center justify-end pr-8" : "col-span-8 flex items-center gap-1 text-gray-600 pl-2"}>
+                     {data.type === 'remission' ? (
+                        <span className="font-bold">{item.quantity}</span>
+                     ) : (
+                        <>
+                            <span>{item.quantity}</span>
+                            <span className="text-[9px]">x</span>
+                            <span>S/ {unitPrice.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>
+                        </>
+                     )}
                   </div>
-                  <div className="col-span-4 text-right font-medium">
-                    S/ {lineTotal.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
-                  </div>
+                  
+                  {data.type !== 'remission' && (
+                    <div className="col-span-4 text-right font-medium">
+                        S/ {lineTotal.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                    </div>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
 
-        {/* Totals */}
-        <div className="border-t border-black pt-2 mb-4 text-[11px]">
-
-
-          <div className="flex justify-between font-bold text-sm mt-1">
-            <span>TOTAL:</span>
-            <span>S/ {data.total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>
-          </div>
-          {data.paymentMethod && (
-             <div className="mt-1 text-center text-[10px]">
-               Pago: {paymentMethodLabels[data.paymentMethod]}
-             </div>
-          )}
-        </div>
+        {/* Totals - Hide for Remission */}
+        {data.type !== 'remission' && (
+            <div className="border-t border-black pt-2 mb-4 text-[11px]">
+            <div className="flex justify-between font-bold text-sm mt-1">
+                <span>TOTAL:</span>
+                <span>S/ {data.total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>
+            </div>
+            {data.paymentMethod && (
+                <div className="mt-1 text-center text-[10px]">
+                Pago: {paymentMethodLabels[data.paymentMethod]}
+                </div>
+            )}
+            </div>
+        )}
 
         {/* Footer / Terms */}
         <div className="text-center text-[9px] border-t border-dashed border-black pt-2">

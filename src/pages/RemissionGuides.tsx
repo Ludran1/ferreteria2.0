@@ -2,15 +2,14 @@ import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { mockSales } from '@/data/mockData';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Plus, Search, Truck, MapPin, Package, Printer, CheckCircle2, Copy, FileText } from 'lucide-react';
+import { Plus, Search, Truck, MapPin, Package, Printer, CheckCircle2, Copy, FileText, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { usePrint } from '@/hooks/usePrint';
 import { CreateRemissionModal } from '@/components/remission/CreateRemissionModal';
-import { Sale } from '@/types';
+import { Sale, RemissionGuide } from '@/types';
 import {
   Dialog,
   DialogContent,
@@ -18,27 +17,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-// Mock remission guides based on sales
-const initialMockGuides = mockSales.slice(0, 2).map((sale, index) => ({
-  id: `GR-00${index + 1}`,
-  saleId: sale.id,
-  customerName: sale.customerName,
-  address: index === 0 ? 'Av. Insurgentes Sur 1234, Col. Del Valle, CDMX' : 'Calle Reforma 567, Col. Centro, Guadalajara',
-  items: sale.items,
-  date: sale.date,
-  status: index === 0 ? 'pending' : 'delivered' as const,
-}));
+import { useRemissionGuides } from '@/hooks/useRemissionGuides';
+import { PrintableDocument } from '@/components/print/PrintableDocument';
 
 export default function RemissionGuides() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [guides, setGuides] = useState(initialMockGuides);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [newAddress, setNewAddress] = useState('');
-  const [viewGuide, setViewGuide] = useState<any | null>(null); // State for modal view
+  const [viewGuide, setViewGuide] = useState<RemissionGuide | null>(null);
+  const [guideToPrint, setGuideToPrint] = useState<RemissionGuide | null>(null);
   
   const { toast } = useToast();
-  const { print } = usePrint();
+  const { print, printRef } = usePrint();
+  const { guides, isLoading, createGuide, updateStatus } = useRemissionGuides();
 
   const filteredGuides = guides.filter(
     (guide) =>
@@ -61,21 +53,11 @@ export default function RemissionGuides() {
       return;
     }
 
-    const newGuide = {
-      id: `GR-${Date.now().toString().slice(-6)}`,
+    createGuide.mutate({
       saleId: selectedSale.id,
       customerName: selectedSale.customerName,
       address: newAddress,
       items: selectedSale.items,
-      date: new Date(),
-      status: 'pending' as const,
-    };
-
-    setGuides([newGuide, ...guides]);
-    
-    toast({
-      title: 'Guía creada',
-      description: `Guía para ${selectedSale.customerName} generada exitosamente`,
     });
 
     setShowAddressModal(false);
@@ -83,18 +65,12 @@ export default function RemissionGuides() {
     setSelectedSale(null);
   };
 
-  const activePrint = (guide: any) => {
-     print({
-        type: 'remission',
-        documentNumber: guide.id,
-        date: guide.date,
-        customerName: guide.customerName,
-        address: guide.address,
-        items: guide.items,
-        subtotal: 0,
-        tax: 0,
-        total: 0,
-    });
+  const activePrint = (guide: RemissionGuide) => {
+     setGuideToPrint(guide);
+     setTimeout(() => {
+        print();
+        setGuideToPrint(null);
+     }, 100);
   };
 
   return (
@@ -154,13 +130,13 @@ export default function RemissionGuides() {
         </div>
       </div>
 
-      {/* Address Confirmation Modal (Simple inline for now) */}
+      {/* Address Confirmation Modal */}
       {showAddressModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl">
             <h3 className="text-lg font-semibold text-foreground">Confirmar Entrega</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Para venta: {selectedSale?.id} - {selectedSale?.customerName}
+              Para venta: {selectedSale?.id.slice(0,8)} - {selectedSale?.customerName}
             </p>
             
             <div className="mt-4 space-y-4">
@@ -169,12 +145,14 @@ export default function RemissionGuides() {
                 value={newAddress}
                 onChange={(e) => setNewAddress(e.target.value)}
                 autoFocus
+                onKeyDown={(e) => e.key === 'Enter' && confirmCreateGuide()}
               />
               <div className="flex gap-3 justify-end">
                 <Button variant="outline" onClick={() => setShowAddressModal(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={confirmCreateGuide}>
+                <Button onClick={confirmCreateGuide} disabled={createGuide.isPending}>
+                  {createGuide.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Generar Guía
                 </Button>
               </div>
@@ -185,7 +163,9 @@ export default function RemissionGuides() {
 
       {/* Guides List */}
       <div className="mt-6 grid gap-4 md:grid-cols-2">
-        {filteredGuides.map((guide, index) => (
+        {isLoading ? (
+            <div className="col-span-2 text-center py-12 text-muted-foreground">Cargando guías...</div>
+        ) : filteredGuides.map((guide, index) => (
           <div
             key={guide.id}
             className="overflow-hidden rounded-2xl bg-card shadow-md transition-all hover:shadow-lg animate-fade-in"
@@ -198,9 +178,9 @@ export default function RemissionGuides() {
                   <Truck className="h-5 w-5 text-primary-foreground" />
                 </div>
                 <div>
-                  <p className="font-semibold text-foreground">{guide.id}</p>
+                  <p className="font-semibold text-foreground">{guide.id.slice(0,8)}</p>
                   <p className="text-sm text-muted-foreground">
-                    {format(guide.date, 'dd MMM yyyy', { locale: es })}
+                    {format(new Date(guide.date), 'dd MMM yyyy', { locale: es })}
                   </p>
                 </div>
               </div>
@@ -249,7 +229,12 @@ export default function RemissionGuides() {
                   Imprimir
                 </Button>
                 {guide.status === 'pending' && (
-                  <Button variant="success" className="flex-1 gap-2">
+                  <Button 
+                     variant="success" 
+                     className="flex-1 gap-2"
+                     onClick={() => updateStatus.mutate({ id: guide.id, status: 'delivered' })}
+                     disabled={updateStatus.isPending}
+                  >
                     <CheckCircle2 className="h-4 w-4" />
                     Marcar Entregada
                   </Button>
@@ -260,8 +245,8 @@ export default function RemissionGuides() {
         ))}
       </div>
 
-      {filteredGuides.length === 0 && (
-        <div className="mt-12 text-center">
+      {filteredGuides.length === 0 && !isLoading && (
+        <div className="mt-12 text-center col-span-2">
           <Truck className="mx-auto h-12 w-12 text-muted-foreground/50" />
           <h3 className="mt-4 text-lg font-medium text-foreground">
             No hay guías de remisión
@@ -282,8 +267,8 @@ export default function RemissionGuides() {
                 <div className="space-y-4">
                     <div className="flex justify-between border-b pb-2">
                         <div>
-                            <p className="font-bold text-lg">{viewGuide.id}</p>
-                            <p className="text-sm text-muted-foreground">{format(viewGuide.date, 'dd MMM yyyy, HH:mm', { locale: es })}</p>
+                            <p className="font-bold text-lg">{viewGuide.id.slice(0,8)}</p>
+                            <p className="text-sm text-muted-foreground">{format(new Date(viewGuide.date), 'dd MMM yyyy, HH:mm', { locale: es })}</p>
                         </div>
                         <div className="text-right">
                             <span className={cn(
@@ -331,6 +316,25 @@ export default function RemissionGuides() {
         </DialogContent>
       </Dialog>
 
+      {/* Printable Document (Hidden) */}
+      {guideToPrint && (
+        <div className="fixed left-[-9999px] top-0">
+          <PrintableDocument 
+            ref={printRef} 
+            data={{
+              type: 'remission',
+              documentNumber: guideToPrint.id,
+              date: new Date(guideToPrint.date),
+              customerName: guideToPrint.customerName,
+              address: guideToPrint.address,
+              items: guideToPrint.items,
+              subtotal: 0,
+              tax: 0,
+              total: 0,
+            }} 
+          /> 
+        </div>
+      )}
     </MainLayout>
   );
 }

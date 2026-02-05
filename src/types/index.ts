@@ -68,3 +68,8 @@ export interface PrintableDocumentData {
   total: number;
   paymentMethod?: 'cash' | 'card' | 'transfer' | 'yape' | 'plin';
 }
+
+export interface UserMetadata {
+  role?: 'admin' | 'employee';
+  allowedSections?: string[];
+}

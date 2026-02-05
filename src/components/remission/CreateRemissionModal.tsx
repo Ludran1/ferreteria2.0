@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { mockSales } from '@/data/mockData';
-import { Sale } from '@/types';
+import { Sale, Quote } from '@/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Search, FileText, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useSales } from '@/hooks/useTransactions';
 
 interface CreateRemissionModalProps {
   onGuideCreated: (sale: Sale) => void;
@@ -17,14 +17,16 @@ export function CreateRemissionModal({ onGuideCreated }: CreateRemissionModalPro
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
+  const { sales, isLoading } = useSales();
+
   // Filter sales from last 24 hours (Logic implementation)
-  // For demo purposes, we might show all if no recent ones exist in mockData
   const now = new Date();
   const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-  const recentSales = mockSales.filter(sale => {
+  const recentSales = (sales || []).filter(sale => {
     // Uncomment this line to enforce 24h filter strictly
-    // return sale.date >= twentyFourHoursAgo; 
+    // const saleDate = new Date(sale.date);
+    // return saleDate >= twentyFourHoursAgo; 
     return true; // Showing all for prototype visibility
   });
 
@@ -63,7 +65,9 @@ export function CreateRemissionModal({ onGuideCreated }: CreateRemissionModalPro
 
         <ScrollArea className="h-[300px] mt-4 rounded-md border p-2">
           <div className="space-y-2">
-            {filteredSales.length === 0 ? (
+            {isLoading ? (
+                <p className="text-center text-sm text-muted-foreground py-8">Cargando ventas...</p>
+            ) : filteredSales.length === 0 ? (
               <p className="text-center text-sm text-muted-foreground py-8">
                 No se encontraron ventas recientes
               </p>
@@ -77,7 +81,7 @@ export function CreateRemissionModal({ onGuideCreated }: CreateRemissionModalPro
                   <div className="flex flex-col">
                     <span className="font-semibold text-foreground">{sale.customerName}</span>
                     <span className="text-xs text-muted-foreground">
-                      {sale.id} • {format(sale.date, "d MMM, HH:mm", { locale: es })}
+                      {sale.id.slice(0,8)} • {format(new Date(sale.date), "d MMM, HH:mm", { locale: es })}
                     </span>
                   </div>
                   <div className="flex items-center gap-4">

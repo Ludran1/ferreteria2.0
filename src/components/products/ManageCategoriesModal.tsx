@@ -4,31 +4,29 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Plus, Trash2, Edit2, Save, X, Layers } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface ManageCategoriesModalProps {
-  initialCategories: string[];
-  onUpdateCategories: (categories: string[]) => void;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    categories: string[];
+    onUpdateCategories: (categories: string[]) => void;
 }
 
-export function ManageCategoriesModal({ initialCategories, onUpdateCategories }: ManageCategoriesModalProps) {
-  const [open, setOpen] = useState(false);
-  const [categories, setCategories] = useState<string[]>(initialCategories);
+export function ManageCategoriesModal({ open, onOpenChange, categories = [], onUpdateCategories }: ManageCategoriesModalProps) {
   const [newCategory, setNewCategory] = useState('');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
   const { toast } = useToast();
 
-  useEffect(() => {
-    setCategories(initialCategories);
-  }, [initialCategories]);
-
+  // No need to sync local state if we use props directly, 
+  // but if we want optimistic UI we just use the props as source of truth
+  // since the parent holds the state.
+  
   const handleAddCategory = () => {
     if (!newCategory.trim()) return;
     if (categories.includes(newCategory.trim())) {
@@ -41,7 +39,6 @@ export function ManageCategoriesModal({ initialCategories, onUpdateCategories }:
     }
 
     const updated = [...categories, newCategory.trim()];
-    setCategories(updated);
     onUpdateCategories(updated);
     setNewCategory('');
     toast({
@@ -53,7 +50,6 @@ export function ManageCategoriesModal({ initialCategories, onUpdateCategories }:
   const handleDeleteCategory = (index: number) => {
     const categoryToDelete = categories[index];
     const updated = categories.filter((_, i) => i !== index);
-    setCategories(updated);
     onUpdateCategories(updated);
     toast({
       title: "Categoría eliminada",
@@ -79,20 +75,13 @@ export function ManageCategoriesModal({ initialCategories, onUpdateCategories }:
 
     const updated = [...categories];
     updated[index] = editValue.trim();
-    setCategories(updated);
     onUpdateCategories(updated);
     setEditingIndex(null);
     setEditValue('');
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
-          <Layers className="h-4 w-4" />
-          Categorías
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Gestionar Categorías</DialogTitle>

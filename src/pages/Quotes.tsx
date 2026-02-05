@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { mockProducts } from '@/data/mockData';
 import { Product, QuoteItem, PrintableDocumentData } from '@/types';
 import { Plus, Search, Minus, Trash2, FileText, ShoppingCart, ScanBarcode, Edit2, Printer, History, RefreshCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -26,7 +25,16 @@ import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 import { usePrint } from '@/hooks/usePrint';
 import { PrintableDocument } from '@/components/print/PrintableDocument';
 
+// Hooks
+import { useProducts } from '@/hooks/useProducts';
+import { useQuotes, useSales } from '@/hooks/useTransactions';
+
 export default function Quotes() {
+  // Hooks Data
+  const { products: availableProducts } = useProducts();
+  const { createQuote } = useQuotes();
+  const { createSale } = useSales();
+
   const [searchTerm, setSearchTerm] = useState('');
   const [cartItems, setCartItems] = useState<QuoteItem[]>([]);
   const [customerName, setCustomerName] = useState('');
@@ -39,7 +47,6 @@ export default function Quotes() {
   const [transactionType, setTransactionType] = useState<'quote' | 'sale'>('quote');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'transfer' | 'yape' | 'plin'>('cash');
   
-
   const { toast } = useToast();
   const { printRef, handlePrint } = usePrint();
 
@@ -97,7 +104,7 @@ export default function Quotes() {
   };
 
   const handleBarcodeScan = useCallback((barcode: string) => {
-    const product = mockProducts.find(
+    const product = availableProducts.find(
       (p) => p.barcode === barcode || 
              p.sku.toLowerCase() === barcode.toLowerCase() ||
              p.additionalBarcodes?.includes(barcode)
@@ -116,14 +123,14 @@ export default function Quotes() {
         variant: 'destructive',
       });
     }
-  }, [toast]);
+  }, [availableProducts, toast]); // Dependency avail products
 
   useBarcodeScanner({
     onScan: handleBarcodeScan,
     minLength: 4,
   });
 
-  const filteredProducts = mockProducts.filter(
+  const filteredProducts = availableProducts.filter(
     (product) =>
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -193,7 +200,7 @@ export default function Quotes() {
     0
   );
 
-  const handleSaveAndPrint = () => {
+  const handleSaveAndPrint = async () => {
     if (!customerName.trim()) {
       toast({
         title: 'Error',
@@ -211,30 +218,50 @@ export default function Quotes() {
       return;
     }
 
-    // Show print preview and print
-    setShowPrintPreview(true);
-    setTimeout(() => {
-      handlePrint();
-      setShowPrintPreview(false);
-      
-      const typeLabel = transactionType === 'sale' ? 'Venta' : 'Cotización';
-      
-      // Show success toast and clear form
-      toast({
-        title: `${typeLabel} guardada`,
-        description: `${typeLabel} para ${customerName} por S/ ${total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
-      });
-      
-      setCartItems([]);
-      setCustomerName('');
-      setCustomerPhone('');
-    }, 100);
+    const transactionData = {
+        customerName,
+        customerPhone,
+        customerEmail: '',
+        items: cartItems,
+        date: new Date(),
+        total: total,
+    };
+
+    try {
+        if (transactionType === 'sale') {
+           await createSale.mutateAsync({
+               ...transactionData,
+               paymentMethod,
+               invoiceNumber: `FAC-${Date.now()}`,
+           });
+        } else {
+           await createQuote.mutateAsync({
+               ...transactionData,
+               status: 'pending',
+           });
+        }
+
+        // Show print preview
+        setShowPrintPreview(true);
+        setTimeout(() => {
+            handlePrint();
+            setShowPrintPreview(false);
+            
+            setCartItems([]);
+            setCustomerName('');
+            setCustomerPhone('');
+        }, 100);
+
+    } catch (error) {
+        console.error(error);
+        // Toast handled in mutation
+    }
   };
 
 
   const getPrintData = (): PrintableDocumentData => ({
     type: transactionType,
-    documentNumber: `COT-${Date.now().toString().slice(-6)}`,
+    documentNumber: `DOC-${Date.now().toString().slice(-6)}`,
     date: new Date(),
     customerName,
     customerPhone: customerPhone || undefined,

@@ -2,7 +2,6 @@ import { useState, useRef } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { mockSales, mockQuotes } from '@/data/mockData';
 import { format, subMonths, isSameMonth, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -15,7 +14,7 @@ import {
 import { Search, Download, Eye, CreditCard, Banknote, Building2, FileText, Printer, Copy, Camera } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { cn } from '@/lib/utils';
-import { Sale, PrintableDocumentData } from '@/types';
+import { Sale, PrintableDocumentData, Quote } from '@/types';
 import { usePrint } from '@/hooks/usePrint';
 import { PrintableDocument } from '@/components/print/PrintableDocument';
 import { useToast } from '@/hooks/use-toast';
@@ -25,22 +24,26 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useNavigate } from 'react-router-dom';
+
+// Hooks
+import { useQuotes, useSales } from '@/hooks/useTransactions';
 
 const paymentIcons = {
   cash: Banknote,
   card: CreditCard,
   transfer: Building2,
+  yape: Banknote,
+  plin: Banknote,
 };
 
 const paymentLabels = {
   cash: 'Efectivo',
   card: 'Tarjeta',
   transfer: 'Transferencia',
+  yape: 'Yape',
+  plin: 'Plin',
 };
-
-import { useNavigate } from 'react-router-dom';
-
-// ... (existing imports)
 
 export default function Sales() {
   const navigate = useNavigate();
@@ -48,7 +51,7 @@ export default function Sales() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSale, setSelectedSale] = useState<string | null>(null);
   const [saleToPrint, setSaleToPrint] = useState<Sale | null>(null);
-  const [viewSale, setViewSale] = useState<Sale | null>(null); // State for modal view
+  const [viewSale, setViewSale] = useState<Sale | Quote | null>(null);
   
   // History States
   const [historyFilter, setHistoryFilter] = useState<'all' | 'quote' | 'sale'>('all');
@@ -57,23 +60,27 @@ export default function Sales() {
   const { printRef, handlePrint } = usePrint();
   const { toast } = useToast();
 
+  // Data Fetching
+  const { quotes, isLoading: loadingQuotes } = useQuotes();
+  const { sales, isLoading: loadingSales } = useSales();
+
   const allTransactions = [
-    ...mockSales.map(s => ({ ...s, type: 'sale' as const })),
-    ...mockQuotes.map(q => ({ ...q, type: 'quote' as const, paymentMethod: 'pending' as const })) // Pending payment for quotes
+    ...(sales || []).map(s => ({ ...s, type: 'sale' as const })),
+    ...(quotes || []).map(q => ({ ...q, type: 'quote' as const, paymentMethod: 'pending' as const }))
   ];
 
   const filteredTransactions = allTransactions
-    .filter(item => isSameMonth(item.date, selectedMonth))
+    .filter(item => isSameMonth(new Date(item.date), selectedMonth))
     .filter(item => historyFilter === 'all' || item.type === historyFilter)
     .filter((item) =>
-      item.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.id.toLowerCase().includes(searchTerm.toLowerCase())
+      (item.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.id || '').toLowerCase().includes(searchTerm.toLowerCase())
     )
-    .sort((a, b) => b.date.getTime() - a.date.getTime());
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   // Calculate Total Sales (Only 'sale' type counts towards money in)
-  const totalSalesMonth = mockSales
-    .filter(s => isSameMonth(s.date, selectedMonth))
+  const totalSalesMonth = (sales || [])
+    .filter(s => isSameMonth(new Date(s.date), selectedMonth))
     .reduce((sum, sale) => sum + sale.total, 0);
 
   const handlePrintSale = (sale: Sale) => {
@@ -84,18 +91,16 @@ export default function Sales() {
     }, 100);
   };
 
-  const handleCopySale = (sale: any) => {
+  const handleCopySale = (item: any) => {
     // Save to localStorage to load in Quoter/POS
     const draftData = {
-      customerName: sale.customerName,
-      // items need to be mapped if structure matches, usually QuoteItem = { product, quantity, customPrice? }
-      // Assuming sale.items structure is compatible or we map it:
-      items: sale.items.map((item: any) => ({
-        product: item.product,
-        quantity: item.quantity,
-        customPrice: item.customPrice || item.price // specific to how you store price in sale items
+      customerName: item.customerName,
+      items: item.items.map((i: any) => ({
+        product: i.product,
+        quantity: i.quantity,
+        customPrice: i.customPrice ?? i.unit_price ?? i.product.price // Handle different potential field names
       })),
-      type: sale.type // 'sale' or 'quote' to switch mode automatically
+      type: item.type // 'sale' or 'quote'
     };
 
     localStorage.setItem('posDraft', JSON.stringify(draftData));
@@ -160,10 +165,11 @@ export default function Sales() {
     }
   };
 
+  // Helper for generic print data
   const getSalePrintData = (sale: Sale): PrintableDocumentData => ({
-    type: 'sale',
+    type: 'sale', // Force 'sale' for print layout or adjust type if needed
     documentNumber: sale.id,
-    date: sale.date,
+    date: new Date(sale.date),
     customerName: sale.customerName,
     items: sale.items,
     subtotal: sale.total,
@@ -189,7 +195,7 @@ export default function Sales() {
         <div className="rounded-xl bg-card p-5 shadow-md">
           <p className="text-sm text-muted-foreground">Ticket Promedio (Ventas)</p>
           <p className="mt-1 text-2xl font-bold text-foreground">
-            S/ {(totalSalesMonth / (mockSales.filter(s => isSameMonth(s.date, selectedMonth)).length || 1)).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+             S/ {(totalSalesMonth / (sales?.filter(s => isSameMonth(new Date(s.date), selectedMonth)).length || 1)).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
           </p>
         </div>
       </div>
@@ -300,7 +306,7 @@ export default function Sales() {
                         )}>
                             {item.type === 'quote' ? 'COT' : 'VTA'}
                         </span>
-                        <span className="font-medium text-foreground">{item.id}</span>
+                        <span className="font-medium text-foreground">{item.id.slice(0,8)}...</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -308,7 +314,7 @@ export default function Sales() {
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-muted-foreground">
-                        {format(item.date, 'dd MMM yyyy, HH:mm', { locale: es })}
+                        {format(new Date(item.date), 'dd MMM yyyy, HH:mm', { locale: es })}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -316,7 +322,7 @@ export default function Sales() {
                         {item.type === 'sale' ? (
                             <>
                                 {PaymentIcon && <PaymentIcon className="h-4 w-4 text-muted-foreground" />}
-                                <span className="text-foreground capitalize">{paymentLabels[item.paymentMethod as keyof typeof paymentLabels]}</span>
+                                <span className="text-foreground capitalize">{paymentLabels[item.paymentMethod as keyof typeof paymentLabels] || item.paymentMethod}</span>
                             </>
                         ) : (
                             <span className={cn(
@@ -372,37 +378,39 @@ export default function Sales() {
               })}
             </tbody>
           </table>
+          {filteredTransactions.length === 0 && !loadingQuotes && !loadingSales && (
+            <div className="mt-12 text-center pb-12">
+              <FileText className="mx-auto h-12 w-12 text-muted-foreground/50" />
+              <h3 className="mt-4 text-lg font-medium text-foreground">
+                No se encontraron movimientos
+              </h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Intenta ajustar los filtros de búsqueda
+              </p>
+            </div>
+          )}
+          {(loadingQuotes || loadingSales) && (
+              <div className="p-8 text-center text-muted-foreground">Cargando historial...</div>
+          )}
         </div>
       </div>
-
-      {filteredTransactions.length === 0 && (
-        <div className="mt-12 text-center">
-          <FileText className="mx-auto h-12 w-12 text-muted-foreground/50" />
-          <h3 className="mt-4 text-lg font-medium text-foreground">
-            No se encontraron movimientos
-          </h3>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Intenta ajustar los filtros de búsqueda
-          </p>
-        </div>
-      )}
 
       {/* View Receipt Modal */}
       <Dialog open={!!viewSale} onOpenChange={(open) => !open && setViewSale(null)}>
         <DialogContent className="max-w-md">
             <DialogHeader>
-                <DialogTitle>Detalle de {viewSale?.type === 'quote' ? 'Cotización' : 'Venta'}</DialogTitle>
+                <DialogTitle>Detalle de {(viewSale as any)?.type === 'quote' ? 'Cotización' : 'Venta'}</DialogTitle>
             </DialogHeader>
             {viewSale && (
                 <div className="space-y-4">
                     <div ref={receiptRef} className="space-y-4 p-2 bg-white rounded-lg">
                         <div className="flex justify-between border-b pb-2">
                             <div>
-                                <p className="font-bold text-lg">{viewSale.id}</p>
-                                <p className="text-sm text-muted-foreground">{format(viewSale.date, 'dd MMM yyyy, HH:mm', { locale: es })}</p>
+                                <p className="font-bold text-lg text-black">{viewSale.id.slice(0,8)}</p>
+                                <p className="text-sm text-muted-foreground">{format(new Date(viewSale.date), 'dd MMM yyyy, HH:mm', { locale: es })}</p>
                             </div>
                             <div className="text-right">
-                            {viewSale.type === 'quote' ? (
+                            {(viewSale as any).type === 'quote' ? (
                                 <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold uppercase">Cotización</span>
                             ) : (
                                 <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold uppercase">Venta</span>
@@ -412,29 +420,29 @@ export default function Sales() {
                         
                         <div>
                             <p className="text-sm font-medium text-muted-foreground">Cliente</p>
-                            <p className="text-base">{viewSale.customerName}</p>
+                            <p className="text-base text-black">{viewSale.customerName}</p>
                         </div>
 
                         <div className="border rounded-lg p-3 bg-secondary/20 max-h-[300px] overflow-y-auto">
                             <p className="text-sm font-medium text-muted-foreground mb-2">Productos</p>
                             <ul className="space-y-2 text-sm">
                                 {viewSale.items.map((item, i) => (
-                                    <li key={i} className="flex justify-between">
+                                    <li key={i} className="flex justify-between text-black">
                                         <span>{item.quantity}x {item.product.name}</span>
-                                        <span className="font-medium">S/ {(item.quantity * (item.customPrice ?? item.product.price)).toFixed(2)}</span>
+                                        <span className="font-medium">S/ {(item.quantity * ((item as any).customPrice ?? (item as any).unit_price ?? item.product.price)).toFixed(2)}</span>
                                     </li>
                                 ))}
                             </ul>
                         </div>
 
-                        <div className="flex justify-between items-center pt-2 border-t">
+                        <div className="flex justify-between items-center pt-2 border-t text-black">
                             <p className="font-bold text-lg">Total</p>
                             <p className="font-bold text-xl text-primary">S/ {viewSale.total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</p>
                         </div>
                     </div>
 
                     <div className="flex gap-2">
-                        <Button className="w-full gap-2" onClick={() => handlePrintSale(viewSale)}>
+                        <Button className="w-full gap-2" onClick={() => handlePrintSale(viewSale as Sale)}>
                             <Printer className="h-4 w-4" /> Imprimir
                         </Button>
                         <Button variant="outline" className="w-full gap-2" onClick={handleCaptureImage}>
