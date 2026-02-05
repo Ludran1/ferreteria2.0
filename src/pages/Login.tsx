@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Wrench } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { supabase } from '@/lib/supabase';
+
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,10 +20,10 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const { error } = await import('@/lib/supabase').then(m => m.supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
-      }));
+      });
 
       if (error) throw error;
       
