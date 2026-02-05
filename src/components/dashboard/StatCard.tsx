@@ -27,18 +27,18 @@ export function StatCard({
   iconColor = 'primary',
 }: StatCardProps) {
   return (
-    <div className="group relative overflow-hidden rounded-2xl bg-card p-6 shadow-md transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+    <div className="group relative overflow-hidden rounded-xl bg-card p-4 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-1">
       {/* Background decoration */}
-      <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-primary/5 transition-transform duration-300 group-hover:scale-150" />
+      <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-primary/5 transition-transform duration-300 group-hover:scale-150" />
       
       <div className="relative flex items-start justify-between">
         <div>
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="mt-2 text-3xl font-bold text-foreground">{value}</p>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
+          <p className="mt-1 text-2xl font-bold text-foreground">{value}</p>
           {change && (
             <p
               className={cn(
-                'mt-2 text-sm font-medium',
+                'mt-1 text-xs font-medium',
                 changeType === 'positive' && 'text-success',
                 changeType === 'negative' && 'text-destructive',
                 changeType === 'neutral' && 'text-muted-foreground'
@@ -48,8 +48,8 @@ export function StatCard({
             </p>
           )}
         </div>
-        <div className={cn('rounded-xl p-3', iconColors[iconColor])}>
-          <Icon className="h-6 w-6" />
+        <div className={cn('rounded-lg p-2.5', iconColors[iconColor])}>
+          <Icon className="h-5 w-5" />
         </div>
       </div>
     </div>

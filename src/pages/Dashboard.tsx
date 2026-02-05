@@ -67,14 +67,14 @@ export default function Dashboard() {
   return (
     <MainLayout title="Dashboard" subtitle="Resumen de actividad">
       
-      {/* Filter Toggle */}
-      <div className="flex justify-end mb-6">
+      <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-foreground">Resumen</h2>
           <div className="flex p-1 bg-secondary rounded-lg">
              <Button
                 variant={viewMode === 'day' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setViewMode('day')}
-                className="text-xs"
+                className="text-xs h-7"
               >
                   Diario
               </Button>
@@ -82,7 +82,7 @@ export default function Dashboard() {
                 variant={viewMode === 'month' ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => setViewMode('month')}
-                className="text-xs"
+                className="text-xs h-7"
               >
                   Mensual
               </Button>
