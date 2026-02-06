@@ -437,12 +437,18 @@ export default function Sales() {
                         <div className="border rounded-lg p-3 bg-secondary/20 max-h-[300px] overflow-y-auto">
                             <p className="text-sm font-medium text-muted-foreground mb-2">Productos</p>
                             <ul className="space-y-2 text-sm">
-                                {viewSale.items.map((item, i) => (
-                                    <li key={i} className="flex justify-between text-black">
-                                        <span>{item.quantity}x {item.product.name}</span>
-                                        <span className="font-medium">S/ {(item.quantity * ((item as any).customPrice ?? (item as any).unit_price ?? item.product.price)).toFixed(2)}</span>
-                                    </li>
-                                ))}
+                                {viewSale.items.map((item, i) => {
+                                    const unitPrice = (item as any).customPrice ?? (item as any).unit_price ?? item.product.price;
+                                    return (
+                                        <li key={i} className="flex justify-between text-black">
+                                            <div>
+                                                <span>{item.quantity}x {item.product.name}</span>
+                                                <span className="text-muted-foreground ml-2">(S/ {unitPrice.toFixed(2)} c/u)</span>
+                                            </div>
+                                            <span className="font-medium">S/ {(item.quantity * unitPrice).toFixed(2)}</span>
+                                        </li>
+                                    );
+                                })}
                             </ul>
                         </div>
 
