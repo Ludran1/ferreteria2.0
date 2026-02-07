@@ -3,7 +3,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Product, QuoteItem, PrintableDocumentData } from '@/types';
-import { Plus, Search, Minus, Trash2, FileText, ShoppingCart, ScanBarcode, Edit2, Printer } from 'lucide-react';
+import { Plus, Search, Minus, Trash2, FileText, ShoppingCart, ScanBarcode, Edit2, Printer, Receipt } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -13,6 +13,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 import { usePrint } from '@/hooks/usePrint';
@@ -20,7 +27,7 @@ import { PrintableDocument } from '@/components/print/PrintableDocument';
 
 // Hooks
 import { useProducts } from '@/hooks/useProducts';
-import { useQuotes } from '@/hooks/useTransactions';
+import { useSales } from '@/hooks/useTransactions';
 import { useBusinessSettings } from '@/hooks/useBusinessSettings';
 import { useClients } from '@/hooks/useClients';
 import { Client } from '@/types';
@@ -39,19 +46,25 @@ import {
 } from "@/components/ui/popover"
 import { Check, ChevronsUpDown, UserPlus } from "lucide-react"
 
-export default function Quotes() {
+export default function POSVentas() {
   // Hooks Data
   const { products: availableProducts } = useProducts();
-  const { createQuote } = useQuotes();
+  const { createSale } = useSales();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [cartItems, setCartItems] = useState<QuoteItem[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
+  const [customerDocument, setCustomerDocument] = useState('');
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [scannerActive, setScannerActive] = useState(true);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
-  const [lastSavedQuote, setLastSavedQuote] = useState<any>(null);
+  const [lastSavedTransaction, setLastSavedTransaction] = useState<any>(null);
+  
+  // Document type: boleta or factura
+  const [documentType, setDocumentType] = useState<'boleta' | 'factura'>('boleta');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'transfer' | 'yape' | 'plin'>('cash');
   
   const { toast } = useToast();
   const { printRef, handlePrint } = usePrint();
@@ -63,27 +76,6 @@ export default function Quotes() {
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   const [newClientName, setNewClientName] = useState('');
   const [newClientDoc, setNewClientDoc] = useState('');
-
-  // Check for POS Draft on Mount
-  useEffect(() => {
-    const draft = localStorage.getItem('posDraft');
-    if (draft) {
-      try {
-        const data = JSON.parse(draft);
-        setCustomerName(data.customerName || '');
-        setCartItems(data.items || []);
-        
-        toast({
-            title: "Datos Cargados",
-            description: "Se han cargado los datos del historial para editar.",
-        });
-        
-        localStorage.removeItem('posDraft');
-      } catch (e) {
-        console.error("Error loading draft", e);
-      }
-    }
-  }, []);
 
   // Custom Item State
   const [showCustomItemModal, setShowCustomItemModal] = useState(false);
@@ -112,7 +104,7 @@ export default function Quotes() {
     
     toast({
       title: 'Item agregado',
-      description: `${customItemName} añadido a la cotización`,
+      description: `${customItemName} añadido al comprobante`,
     });
   };
 
@@ -213,93 +205,130 @@ export default function Quotes() {
     0
   );
 
-  const handleSaveAndPrint = async () => {
-    if (!customerName.trim() && !selectedClient) {
-      toast({
-        title: 'Error',
-        description: 'Ingresa el nombre del cliente',
-        variant: 'destructive',
-      });
-      return;
+  // Calculate IGV (18%)
+  const subtotalSinIGV = total / 1.18;
+  const igv = total - subtotalSinIGV;
+
+  const handleEmitDocument = async () => {
+    // Validation for Factura (requires RUC)
+    if (documentType === 'factura') {
+      if (!customerDocument || customerDocument.length !== 11) {
+        toast({
+          title: 'RUC Requerido',
+          description: 'Para emitir una factura se requiere un RUC válido de 11 dígitos',
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (!customerName.trim()) {
+        toast({
+          title: 'Razón Social Requerida',
+          description: 'Ingresa la razón social del cliente',
+          variant: 'destructive',
+        });
+        return;
+      }
     }
+
     if (cartItems.length === 0) {
       toast({
         title: 'Error',
-        description: 'Agrega productos a la cotización',
+        description: 'Agrega productos al comprobante',
         variant: 'destructive',
       });
       return;
     }
 
-    const quoteData = {
-        customerName: selectedClient ? selectedClient.name : customerName,
-        customerPhone: selectedClient ? (selectedClient.phone || '') : customerPhone,
-        customerEmail: selectedClient ? (selectedClient.email || '') : '',
-        items: cartItems,
-        date: new Date(),
-        total: total,
-        status: 'pending' as const,
+    // TODO: Integrate with API SUNAT here
+    toast({
+      title: 'Próximamente',
+      description: `La emisión de ${documentType === 'boleta' ? 'Boleta' : 'Factura'} electrónica se integrará con API SUNAT`,
+    });
+
+    // For now, save as a regular sale with metadata
+    const transactionData = {
+      customerName: selectedClient ? selectedClient.name : customerName,
+      customerPhone: selectedClient ? (selectedClient.phone || '') : customerPhone,
+      customerEmail: selectedClient ? (selectedClient.email || '') : '',
+      items: cartItems,
+      date: new Date(),
+      total: total,
+      paymentMethod,
+      paymentType: 'contado' as const,
+      // Electronic document metadata
+      documentType,
+      customerDocument,
+      customerAddress,
+      subtotalSinIGV,
+      igv,
     };
 
     try {
-        const result = await createQuote.mutateAsync(quoteData);
-        setLastSavedQuote(result);
+      const result = await createSale.mutateAsync(transactionData as any);
+      setLastSavedTransaction(result);
 
-        // Show print preview
-        setShowPrintPreview(true);
-        setTimeout(() => {
-            handlePrint();
-            setShowPrintPreview(false);
-            setLastSavedQuote(null);
-            
-            setCartItems([]);
-            setCustomerName('');
-            setCustomerPhone('');
-            setSelectedClient(null);
-        }, 100);
+      // Show print preview
+      setShowPrintPreview(true);
+      setTimeout(() => {
+        handlePrint();
+        setShowPrintPreview(false);
+        setLastSavedTransaction(null);
+        
+        // Reset form
+        setCartItems([]);
+        setCustomerName('');
+        setCustomerPhone('');
+        setCustomerDocument('');
+        setCustomerAddress('');
+        setSelectedClient(null);
+      }, 100);
 
     } catch (error) {
-        console.error(error);
+      console.error(error);
     }
   };
 
   const handleCreateClient = () => {
-      createClient.mutate({
-          name: newClientName,
-          documentId: newClientDoc,
-          phone: '',
-          email: '',
-          address: '',
-          notes: ''
-      } as any, {
-          onSuccess: (newClient) => {
-              setSelectedClient(newClient as Client);
-              setCustomerName(newClient.name);
-              setShowNewClientModal(false);
-              setNewClientName('');
-              setNewClientDoc('');
-          }
-      });
+    createClient.mutate({
+      name: newClientName,
+      documentId: newClientDoc,
+      phone: '',
+      email: '',
+      address: '',
+      notes: ''
+    } as any, {
+      onSuccess: (newClient) => {
+        setSelectedClient(newClient as Client);
+        setCustomerName(newClient.name);
+        setCustomerDocument(newClient.documentId || '');
+        setShowNewClientModal(false);
+        setNewClientName('');
+        setNewClientDoc('');
+      }
+    });
   };
 
   const getPrintData = (): PrintableDocumentData => {
-    const docNumber = lastSavedQuote?.quote_number || 'PENDIENTE';
+    const docNumber = lastSavedTransaction 
+      ? lastSavedTransaction.invoice_number
+      : 'PENDIENTE';
 
     return {
-        type: 'quote',
-        documentNumber: docNumber,
-        date: new Date(),
-        customerName,
-        customerPhone: customerPhone || undefined,
-        items: cartItems,
-        subtotal: total,
-        tax: 0,
-        total: total,
+      type: 'sale',
+      documentNumber: docNumber || 'PENDIENTE',
+      date: new Date(),
+      customerName,
+      customerPhone: customerPhone || undefined,
+      items: cartItems,
+      subtotal: subtotalSinIGV,
+      tax: igv,
+      total: total,
+      paymentMethod,
     };
   };
 
   return (
-    <MainLayout title="Cotizaciones" subtitle="Crea y gestiona cotizaciones para tus clientes">
+    <MainLayout title="POS Ventas" subtitle="Emisión de Boletas y Facturas Electrónicas">
       <div className="grid gap-6 lg:grid-cols-7">
         {/* Products Panel */}
         <div className="lg:col-span-4 space-y-6">
@@ -349,7 +378,7 @@ export default function Quotes() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="price">Precio Unitario</Label>
+                  <Label htmlFor="price">Precio Unitario (Inc. IGV)</Label>
                   <div className="relative">
                      <span className="absolute left-3 top-2.5 text-muted-foreground">S/</span>
                      <Input
@@ -385,15 +414,15 @@ export default function Quotes() {
                   <Input
                     value={newClientName}
                     onChange={(e) => setNewClientName(e.target.value)}
-                    placeholder="Nombre completo"
+                    placeholder="Nombre completo o razón social"
                   />
                 </div>
                  <div className="grid gap-2">
-                  <Label>RUC / DNI (Opcional)</Label>
+                  <Label>RUC / DNI</Label>
                   <Input
                     value={newClientDoc}
                     onChange={(e) => setNewClientDoc(e.target.value)}
-                    placeholder="Documento"
+                    placeholder="Documento de identidad"
                   />
                 </div>
               </div>
@@ -438,102 +467,158 @@ export default function Quotes() {
         <div className="hidden lg:block lg:col-span-3">
           <div className="sticky top-24 rounded-2xl bg-card p-6 shadow-lg">
             <div className="flex items-center gap-3">
-              <FileText className="h-6 w-6 text-primary" />
-              <div>
-                <h3 className="font-semibold text-foreground">Nueva Cotización</h3>
-                <span className="text-sm text-muted-foreground">
-                  ({cartItems.length} productos)
-                </span>
+              <div className="w-full">
+                <div className="flex items-center justify-between mb-4">
+                     {/* Toggle Boleta/Factura */}
+                     <div className="flex bg-secondary p-1 rounded-lg">
+                        <button
+                          onClick={() => setDocumentType('boleta')}
+                          className={cn(
+                            "px-4 py-1.5 rounded-md text-sm font-medium transition-all",
+                            documentType === 'boleta' 
+                              ? "bg-white text-primary shadow-sm" 
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          Boleta
+                        </button>
+                        <button
+                          onClick={() => setDocumentType('factura')}
+                          className={cn(
+                            "px-4 py-1.5 rounded-md text-sm font-medium transition-all",
+                            documentType === 'factura' 
+                              ? "bg-white text-primary shadow-sm" 
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          Factura
+                        </button>
+                     </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Receipt className="h-5 w-5 text-primary" />
+                  <h3 className="font-semibold text-foreground">
+                    Nueva {documentType === 'boleta' ? 'Boleta' : 'Factura'} Electrónica
+                  </h3>
+                  <span className="text-sm text-muted-foreground">
+                    ({cartItems.length} productos)
+                  </span>
+                </div>
               </div>
             </div>
 
             {/* Customer Info */}
             <div className="mt-6 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <Popover open={openClientCombo} onOpenChange={setOpenClientCombo}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={openClientCombo}
-                      className="justify-between font-normal"
-                    >
-                      {selectedClient ? selectedClient.name : (customerName || "Seleccionar cliente...")}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="p-0" align="start">
-                    <Command>
-                      <CommandInput placeholder="Buscar cliente..." />
-                      <CommandList>
-                        <CommandEmpty>
-                            <div className="p-2">
-                                <p className="text-sm text-muted-foreground mb-2">No encontrado</p>
-                                <Button size="sm" className="w-full" onClick={() => {
-                                    setShowNewClientModal(true);
-                                    setOpenClientCombo(false); 
-                                }}>
-                                    <UserPlus className="h-4 w-4 mr-2" />
-                                    Nuevo Cliente
-                                </Button>
-                                <Button size="sm" variant="ghost" className="w-full mt-1" onClick={() => {
-                                    setSelectedClient(null);
-                                    setCustomerName("");
-                                    setOpenClientCombo(false);
-                                }}>
-                                    Usar nombre manual
-                                </Button>
+              {/* Client selector */}
+              <Popover open={openClientCombo} onOpenChange={setOpenClientCombo}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openClientCombo}
+                    className="w-full justify-between font-normal"
+                  >
+                    {selectedClient ? selectedClient.name : (customerName || "Seleccionar cliente...")}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar cliente..." />
+                    <CommandList>
+                      <CommandEmpty>
+                        <div className="p-2">
+                          <p className="text-sm text-muted-foreground mb-2">No encontrado</p>
+                          <Button size="sm" className="w-full" onClick={() => {
+                            setShowNewClientModal(true);
+                            setOpenClientCombo(false); 
+                          }}>
+                            <UserPlus className="h-4 w-4 mr-2" />
+                            Nuevo Cliente
+                          </Button>
+                        </div>
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {clients.map((client) => (
+                          <CommandItem
+                            key={client.id}
+                            value={client.name}
+                            onSelect={() => {
+                              setSelectedClient(client);
+                              setCustomerName(client.name);
+                              setCustomerPhone(client.phone || '');
+                              setCustomerDocument(client.documentId || '');
+                              setOpenClientCombo(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedClient?.id === client.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <div>
+                              <p>{client.name}</p>
+                              {client.documentId && <p className="text-xs text-muted-foreground">{client.documentId}</p>}
                             </div>
-                        </CommandEmpty>
-                        <CommandGroup>
-                          {clients.map((client) => (
-                            <CommandItem
-                              key={client.id}
-                              value={client.name}
-                              onSelect={() => {
-                                setSelectedClient(client);
-                                setCustomerName(client.name);
-                                setCustomerPhone(client.phone || '');
-                                setOpenClientCombo(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  selectedClient?.id === client.id ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              {client.name}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
 
-                <Input
-                  placeholder="Teléfono (opcional)"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                />
-              </div>
-              
-              {/* Manual name input if no client selected */}
-              {!selectedClient && (
-                <Input
-                  placeholder="Nombre del cliente"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                />
+              {/* Document-specific fields */}
+              {documentType === 'factura' ? (
+                <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-xs font-medium text-blue-700">Datos para Factura (Obligatorios)</p>
+                  <Input
+                    placeholder="RUC (11 dígitos) *"
+                    value={customerDocument}
+                    onChange={(e) => setCustomerDocument(e.target.value)}
+                    maxLength={11}
+                  />
+                  <Input
+                    placeholder="Razón Social *"
+                    value={customerName}
+                    onChange={(e) => {
+                      setCustomerName(e.target.value);
+                      setSelectedClient(null);
+                    }}
+                  />
+                  <Input
+                    placeholder="Dirección Fiscal"
+                    value={customerAddress}
+                    onChange={(e) => setCustomerAddress(e.target.value)}
+                  />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    placeholder="DNI (opcional)"
+                    value={customerDocument}
+                    onChange={(e) => setCustomerDocument(e.target.value)}
+                    maxLength={8}
+                  />
+                  <Input
+                    placeholder="Nombre (opcional)"
+                    value={customerName}
+                    onChange={(e) => {
+                      setCustomerName(e.target.value);
+                      setSelectedClient(null);
+                    }}
+                  />
+                </div>
               )}
             </div>
 
             {/* Cart Items */}
-            <div className="mt-6 max-h-[500px] space-y-3 overflow-y-auto pr-2">
+            <div className="mt-6 max-h-[350px] space-y-3 overflow-y-auto pr-2">
               {cartItems.length === 0 ? (
                 <p className="text-center text-sm text-muted-foreground py-8">
-                  Agrega productos a la cotización
+                  Agrega productos al comprobante
                 </p>
               ) : (
                 cartItems.map((item, index) => (
@@ -648,29 +733,55 @@ export default function Quotes() {
               )}
             </div>
 
-            {/* Total */}
-            <div className="mt-3 border-t border-border pt-4">
-              <div className="flex items-center justify-between">
-                <span className="text-lg font-semibold">Total</span>
-                <span className="text-2xl font-bold text-primary">
-                  S/ {total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
-                </span>
+            {/* Totals with IGV breakdown */}
+            <div className="mt-4 border-t border-border pt-4 space-y-2">
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Subtotal (sin IGV)</span>
+                <span>S/ {subtotalSinIGV.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>IGV (18%)</span>
+                <span>S/ {igv.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t">
+                <div className="flex gap-2">
+                  <Select value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)}>
+                    <SelectTrigger className="w-[120px] h-8">
+                      <SelectValue placeholder="Método" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Efectivo</SelectItem>
+                      <SelectItem value="card">Tarjeta</SelectItem>
+                      <SelectItem value="transfer">Transferencia</SelectItem>
+                      <SelectItem value="yape">Yape</SelectItem>
+                      <SelectItem value="plin">Plin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground">Total</p>
+                  <p className="text-2xl font-bold text-primary">
+                    S/ {total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* Actions */}
-            <div className="mt-6">
-              <Button className="w-full gap-2" size="lg" onClick={handleSaveAndPrint}>
-                <Printer className="h-4 w-4" />
-                Guardar Cotización
-              </Button>
-            </div>
+            {/* Action Button */}
+            <Button
+              className="w-full mt-4 h-12 text-lg gap-2"
+              onClick={handleEmitDocument}
+              disabled={cartItems.length === 0}
+            >
+              <Receipt className="h-5 w-5" />
+              Emitir {documentType === 'boleta' ? 'Boleta' : 'Factura'}
+            </Button>
           </div>
         </div>
       </div>
 
       {/* Hidden Print Component */}
-      {showPrintPreview && (
+      {showPrintPreview && lastSavedTransaction && (
         <div className="fixed left-[-9999px] top-0">
           <PrintableDocument ref={printRef} data={getPrintData()} settings={settings} />
         </div>

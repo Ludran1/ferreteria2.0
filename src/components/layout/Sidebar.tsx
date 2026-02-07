@@ -15,6 +15,7 @@ import {
   LogOut,
   Wallet,
   Menu,
+  Receipt,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -23,6 +24,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/co
 const menuItems = [
   { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/' },
   { id: 'productos', icon: Package, label: 'Productos', path: '/productos' },
+  { id: 'pos-ventas', icon: Receipt, label: 'POS Ventas', path: '/pos-ventas' },
   { id: 'cotizaciones', icon: FileText, label: 'Cotizaciones', path: '/cotizaciones' },
   { id: 'ventas', icon: History, label: 'Historial de Ventas', path: '/ventas' },
   { id: 'creditos', icon: Wallet, label: 'Créditos y Clientes', path: '/creditos' },

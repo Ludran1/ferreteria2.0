@@ -13,6 +13,7 @@ import RemissionGuides from "./pages/RemissionGuides";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
+import POSVentas from "./pages/POSVentas";
 
 const queryClient = new QueryClient();
 
@@ -47,6 +48,7 @@ const App = () => (
             <Route path="/guias" element={<ProtectedRoute><RemissionGuides /></ProtectedRoute>} />
             <Route path="/creditos" element={<ProtectedRoute><Credits /></ProtectedRoute>} />
             <Route path="/configuracion" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="/pos-ventas" element={<ProtectedRoute><POSVentas /></ProtectedRoute>} />
             
             <Route path="*" element={<NotFound />} />
           </Routes>
