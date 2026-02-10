@@ -111,36 +111,35 @@ export default function POSVentas() {
   const [newClientDoc, setNewClientDoc] = useState('');
   const [newClientAddress, setNewClientAddress] = useState('');
 
-  // Auto-lookup for New Client Modal
-  useEffect(() => {
-    const fetchNewClientData = async () => {
-      // Validate length and open modal to avoid unnecessary calls
-      if (!showNewClientModal) return;
+  // Manual lookup for New Client Modal
+  const handleSearchClient = async () => {
+    if (!newClientDoc) return;
 
-      if (newClientDoc.length === 8) {
-        const data = await consultarDni(newClientDoc);
-        if (data) {
-          setNewClientName(`${data.nombres} ${data.apellidoPaterno} ${data.apellidoMaterno}`);
-          toast({ title: 'Cliente encontrado', description: 'Datos cargados de RENIEC' });
-        } else {
-          toast({ title: 'No encontrado', description: 'No se encontraron datos en RENIEC', variant: 'destructive' });
-        }
-      } else if (newClientDoc.length === 11) {
-        const data = await consultarRuc(newClientDoc);
-        if (data) {
-          setNewClientName(data.razonSocial);
-          setNewClientAddress(data.direccion || '');
-          toast({ title: 'Empresa encontrada', description: 'Datos cargados de SUNAT' });
-        } else {
-          toast({ title: 'No encontrado', description: 'No se encontraron datos en SUNAT', variant: 'destructive' });
-        }
+    if (newClientDoc.length === 8) {
+      const data = await consultarDni(newClientDoc);
+      if (data) {
+        setNewClientName(`${data.nombres} ${data.apellidoPaterno} ${data.apellidoMaterno}`);
+        toast({ title: 'Cliente encontrado', description: 'Datos cargados de RENIEC' });
+      } else {
+        toast({ title: 'No encontrado', description: 'No se encontraron datos en RENIEC', variant: 'destructive' });
       }
-    };
-
-    if (newClientDoc.length === 8 || newClientDoc.length === 11) {
-      fetchNewClientData();
+    } else if (newClientDoc.length === 11) {
+      const data = await consultarRuc(newClientDoc);
+      if (data) {
+        setNewClientName(data.razonSocial);
+        setNewClientAddress(data.direccion || '');
+        toast({ title: 'Empresa encontrada', description: 'Datos cargados de SUNAT' });
+      } else {
+        toast({ title: 'No encontrado', description: 'No se encontraron datos en SUNAT', variant: 'destructive' });
+      }
+    } else {
+      toast({ 
+        title: 'Documento inválido', 
+        description: 'El documento debe tener 8 (DNI) o 11 (RUC) dígitos', 
+        variant: 'destructive' 
+      });
     }
-  }, [newClientDoc, showNewClientModal, toast]);
+  };
 
   // Custom Item State
   const [showCustomItemModal, setShowCustomItemModal] = useState(false);
@@ -528,11 +527,30 @@ export default function POSVentas() {
                 </div>
                  <div className="grid gap-2">
                   <Label>RUC / DNI</Label>
-                  <Input
-                    value={newClientDoc}
-                    onChange={(e) => setNewClientDoc(e.target.value)}
-                    placeholder="Documento de identidad"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      value={newClientDoc}
+                      onChange={(e) => setNewClientDoc(e.target.value)}
+                      placeholder="Documento de identidad"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSearchClient();
+                        }
+                      }}
+                    />
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleSearchClient();
+                      }}
+                      title="Buscar en RENIEC/SUNAT"
+                    >
+                      <Search className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
                  <div className="grid gap-2">
                   <Label>Dirección (Opcional)</Label>
