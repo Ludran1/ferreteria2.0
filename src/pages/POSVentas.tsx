@@ -440,24 +440,22 @@ export default function POSVentas() {
             </div>
           )}
 
-          {/* Products Grid */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {/* Products Grid - 4x4 compact */}
+          <div className="grid grid-cols-4 gap-2 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
             {filteredProducts.map((product) => (
               <button
                 key={product.id}
                 onClick={() => addToCart(product)}
-                className="flex items-center gap-3 rounded-xl bg-card p-4 text-left shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
+                className="flex flex-col items-center gap-1 rounded-lg bg-card p-2 text-center shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
               >
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-secondary">
-                  <ShoppingCart className="h-5 w-5 text-muted-foreground" />
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary">
+                  <ShoppingCart className="h-4 w-4 text-muted-foreground" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-foreground line-clamp-2 leading-tight" title={product.name}>{product.name}</p>
-                  <p className="text-sm text-muted-foreground">{product.sku}</p>
-                  <p className="font-bold text-primary">
-                    S/ {product.price.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
-                  </p>
-                </div>
+                <p className="text-xs font-medium text-foreground line-clamp-2 leading-tight w-full" title={product.name}>{product.name}</p>
+                <p className="text-[10px] text-muted-foreground">{product.sku}</p>
+                <p className="text-xs font-bold text-primary">
+                  S/ {product.price.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                </p>
               </button>
             ))}
           </div>

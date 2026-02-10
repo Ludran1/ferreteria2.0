@@ -86,7 +86,7 @@ export function useQuotes() {
           product_id: isManual ? null : item.product.id,
           product_name: isManual ? item.product.name : null, // Store name if manual
           quantity: item.quantity,
-          custom_price: item.customPrice,
+          custom_price: item.customPrice ?? item.product.price, // Always store the price at time of quote
         };
       });
 
