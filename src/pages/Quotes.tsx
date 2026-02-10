@@ -65,6 +65,7 @@ export default function Quotes() {
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   const [newClientName, setNewClientName] = useState('');
   const [newClientDoc, setNewClientDoc] = useState('');
+  const [newClientAddress, setNewClientAddress] = useState('');
 
   // Check for POS Draft on Mount
   useEffect(() => {
@@ -282,7 +283,7 @@ export default function Quotes() {
           documentId: newClientDoc,
           phone: '',
           email: '',
-          address: '',
+          address: newClientAddress,
           notes: ''
       } as any, {
           onSuccess: (newClient) => {
@@ -291,6 +292,7 @@ export default function Quotes() {
               setShowNewClientModal(false);
               setNewClientName('');
               setNewClientDoc('');
+              setNewClientAddress('');
           }
       });
   };
@@ -409,6 +411,14 @@ export default function Quotes() {
                     placeholder="Documento"
                   />
                 </div>
+                 <div className="grid gap-2">
+                  <Label>Dirección (Opcional)</Label>
+                  <Input
+                    value={newClientAddress}
+                    onChange={(e) => setNewClientAddress(e.target.value)}
+                    placeholder="Dirección fiscal"
+                  />
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setShowNewClientModal(false)}>Cancelar</Button>
@@ -498,20 +508,22 @@ export default function Quotes() {
 
             {/* Customer Info */}
             <div className="mt-6 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-[1fr_140px] gap-3">
                 <Popover open={openClientCombo} onOpenChange={setOpenClientCombo}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
                       role="combobox"
                       aria-expanded={openClientCombo}
-                      className="justify-between font-normal"
+                      className="justify-between font-normal w-full"
                     >
-                      {selectedClient ? selectedClient.name : (customerName || "Seleccionar cliente...")}
+                      <span className="truncate">
+                        {selectedClient ? selectedClient.name : (customerName || "Seleccionar cliente...")}
+                      </span>
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="p-0" align="start">
+                  <PopoverContent className="p-0 w-[300px]" align="start">
                     <Command>
                       <CommandInput placeholder="Buscar cliente..." />
                       <CommandList>
@@ -562,9 +574,10 @@ export default function Quotes() {
                 </Popover>
 
                 <Input
-                  placeholder="Teléfono (opcional)"
+                  placeholder="Teléfono"
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(e.target.value)}
+                  maxLength={9}
                 />
               </div>
               

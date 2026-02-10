@@ -14,6 +14,7 @@ export interface QuoteItem {
   product: Product;
   quantity: number;
   customPrice?: number; // Precio personalizado por ítem
+  price_at_sale?: number; // Precio al momento de la venta
 }
 
 export interface Quote {
@@ -39,6 +40,13 @@ export interface Sale {
   clientId?: string;
   balance?: number;
   invoiceNumber?: string;
+  // SUNAT fields
+  documentType?: 'boleta' | 'factura';
+  documentSerie?: string;
+  documentNumber?: number;
+  sunatEstado?: string;
+  customerDocument?: string;
+  sunatHash?: string;
 }
 
 export interface Client {

@@ -16,7 +16,7 @@ import html2canvas from 'html2canvas';
 import { cn } from '@/lib/utils';
 import { Sale, PrintableDocumentData, Quote } from '@/types';
 import { usePrint } from '@/hooks/usePrint';
-import { PrintableDocument } from '@/components/print/PrintableDocument';
+import { ThermalReceipt, ThermalReceiptData } from '@/components/print/ThermalReceipt';
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -88,8 +88,33 @@ export default function Sales() {
   const handlePrintSale = (sale: Sale) => {
     setSaleToPrint(sale);
     setTimeout(() => {
-      handlePrint();
-      setSaleToPrint(null);
+      // Inject print CSS to hide everything except the receipt
+      const style = document.createElement('style');
+      style.id = 'receipt-print-style';
+      style.textContent = `
+        @media print {
+          @page { margin: 0; size: 80mm auto; }
+          body { margin: 0 !important; padding: 0 !important; }
+          body * { visibility: hidden !important; }
+          #receipt-print-area, #receipt-print-area * { visibility: visible !important; }
+          #receipt-print-area { 
+            position: fixed !important; 
+            left: 0 !important; 
+            top: 0 !important; 
+            width: 80mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+      window.print();
+      // Remove the style after printing
+      setTimeout(() => { 
+        document.getElementById('receipt-print-style')?.remove(); 
+        setSaleToPrint(null); 
+      }, 500);
     }, 100);
   };
 
@@ -167,18 +192,35 @@ export default function Sales() {
     }
   };
 
-  // Helper for generic print data
-  const getSalePrintData = (sale: Sale): PrintableDocumentData => ({
-    type: 'sale', 
-    documentNumber: sale.invoiceNumber || sale.id.slice(0, 8),
-    date: new Date(sale.date),
-    customerName: sale.customerName,
-    items: sale.items,
-    subtotal: sale.total,
-    tax: 0,
-    total: sale.total,
-    paymentMethod: sale.paymentMethod,
-  });
+  // Helper for thermal receipt data
+  const getThermalReceiptData = (sale: Sale): ThermalReceiptData => {
+    const subtotal = sale.total / 1.18;
+    const igv = sale.total - subtotal;
+    
+    return {
+      title: sale.documentType === 'factura' ? 'FACTURA DE VENTA' : 'BOLETA DE VENTA',
+      serie: sale.documentSerie || 'B001',
+      number: (sale.documentNumber || 0).toString().padStart(6, '0'),
+      customerName: sale.customerName,
+      customerDocument: sale.customerDocument || '-',
+      date: new Date(sale.date),
+      items: sale.items.map(item => {
+        const price = item.price_at_sale ?? item.customPrice ?? item.product.price;
+        return {
+          name: item.product.name,
+          quantity: item.quantity,
+          price: price,
+          total: price * item.quantity
+        };
+      }),
+      subtotal: subtotal,
+      igv: igv,
+      total: sale.total,
+      paymentMethod: sale.paymentMethod,
+      sunatHash: sale.sunatHash,
+      isElectronic: true
+    };
+  };
 
   return (
     <MainLayout title="Historial de Ventas" subtitle="Consulta todas las transacciones">
@@ -304,13 +346,21 @@ export default function Sales() {
                       <div className="flex items-center gap-2">
                         <span className={cn(
                           "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded",
-                          item.type === 'quote' ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"
+                          item.type === 'quote' ? "bg-blue-100 text-blue-700" 
+                            : (item as Sale).documentType === 'boleta' ? "bg-orange-100 text-orange-700"
+                            : (item as Sale).documentType === 'factura' ? "bg-purple-100 text-purple-700"
+                            : "bg-green-100 text-green-700"
                         )}>
-                            {item.type === 'quote' ? 'COT' : 'VTA'}
+                            {item.type === 'quote' ? 'COT' 
+                              : (item as Sale).documentType === 'boleta' ? 'BOL'
+                              : (item as Sale).documentType === 'factura' ? 'FAC'
+                              : 'VTA'}
                         </span>
                         <span className="font-medium text-foreground">
                             {item.type === 'sale' 
-                                ? (item.invoiceNumber || item.id.slice(0,8)) 
+                                ? ((item as Sale).documentSerie 
+                                    ? `${(item as Sale).documentSerie}-${(item as Sale).documentNumber}`
+                                    : (item.invoiceNumber || item.id.slice(0,8)))
                                 : ((item as any).quoteNumber || item.id.slice(0,8))}
                         </span>
                       </div>
@@ -414,7 +464,7 @@ export default function Sales() {
                             <div>
                                 <p className="font-bold text-lg text-black">
                                     {(viewSale as any).type === 'sale' 
-                                        ? ((viewSale as Sale).invoiceNumber || viewSale.id.slice(0,8))
+                                        ? ((viewSale as Sale).documentType === 'boleta' ? 'BOLETA' : (viewSale as Sale).documentType === 'factura' ? 'FACTURA' : 'VENTA') + ' ' + ((viewSale as Sale).documentSerie ? `${(viewSale as Sale).documentSerie}-${(viewSale as Sale).documentNumber}` : (viewSale as Sale).invoiceNumber || viewSale.id.slice(0,8))
                                         : ((viewSale as any).quoteNumber || viewSale.id.slice(0,8))
                                     }
                                 </p>
@@ -424,7 +474,16 @@ export default function Sales() {
                             {(viewSale as any).type === 'quote' ? (
                                 <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold uppercase">Cotización</span>
                             ) : (
-                                <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold uppercase">Venta</span>
+                                <span className={cn(
+                                    "px-2 py-1 rounded text-xs font-bold uppercase",
+                                    (viewSale as Sale).documentType === 'boleta' ? "bg-orange-100 text-orange-700"
+                                    : (viewSale as Sale).documentType === 'factura' ? "bg-purple-100 text-purple-700"
+                                    : "bg-green-100 text-green-700"
+                                )}>
+                                    {(viewSale as Sale).documentType === 'boleta' ? 'Boleta'
+                                    : (viewSale as Sale).documentType === 'factura' ? 'Factura'
+                                    : 'Venta'}
+                                </span>
                             )}
                             </div>
                         </div>
@@ -473,8 +532,8 @@ export default function Sales() {
 
       {/* Hidden Print Component */}
       {saleToPrint && (
-        <div className="fixed left-[-9999px] top-0">
-          <PrintableDocument ref={printRef} data={getSalePrintData(saleToPrint)} settings={settings} />
+        <div style={{ position: 'fixed', left: '-9999px', top: 0 }}>
+          <ThermalReceipt ref={printRef} data={getThermalReceiptData(saleToPrint)} />
         </div>
       )}
     </MainLayout>

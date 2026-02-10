@@ -24,10 +24,12 @@ import { Label } from "@/components/ui/label";
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 import { usePrint } from '@/hooks/usePrint';
 import { PrintableDocument } from '@/components/print/PrintableDocument';
+import { numberToText } from '@/lib/numberToText';
 
 // Hooks
 import { useProducts } from '@/hooks/useProducts';
-import { useSales } from '@/hooks/useTransactions';
+import { useSales, getNextDocumentNumber } from '@/hooks/useTransactions';
+import { buildDocumentRequest, emitirComprobante, consultarDni, consultarRuc } from '@/lib/apiSunat';
 import { useBusinessSettings } from '@/hooks/useBusinessSettings';
 import { useClients } from '@/hooks/useClients';
 import { Client } from '@/types';
@@ -61,12 +63,43 @@ export default function POSVentas() {
   const [scannerActive, setScannerActive] = useState(true);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [lastSavedTransaction, setLastSavedTransaction] = useState<any>(null);
+  const [isEmitting, setIsEmitting] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [sunatResult, setSunatResult] = useState<{ estado: string; serie: string; numero: number; message: string } | null>(null);
+  
+
   
   // Document type: boleta or factura
   const [documentType, setDocumentType] = useState<'boleta' | 'factura'>('boleta');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'transfer' | 'yape' | 'plin'>('cash');
   
   const { toast } = useToast();
+
+  // Auto-lookup DNI/RUC
+  useEffect(() => {
+    const fetchClientData = async () => {
+      if (documentType === 'boleta' && customerDocument.length === 8) {
+        const data = await consultarDni(customerDocument);
+        if (data) {
+          setCustomerName(`${data.nombres} ${data.apellidoPaterno} ${data.apellidoMaterno}`);
+          setCustomerAddress('-'); 
+          toast({ title: 'Cliente encontrado', description: 'Datos cargados de RENIEC' });
+        }
+      } else if (documentType === 'factura' && customerDocument.length === 11) {
+        const data = await consultarRuc(customerDocument);
+        if (data) {
+          setCustomerName(data.razonSocial);
+          setCustomerAddress(data.direccion || '-');
+          toast({ title: 'Empresa encontrada', description: 'Datos cargados de SUNAT' });
+        }
+      }
+    };
+    
+    // Debounce/Trigger when length is correct
+    if (customerDocument.length === 8 || customerDocument.length === 11) {
+        fetchClientData();
+    }
+  }, [customerDocument, documentType, toast]);
   const { printRef, handlePrint } = usePrint();
   const { settings } = useBusinessSettings();
   const { clients, createClient } = useClients();
@@ -76,6 +109,38 @@ export default function POSVentas() {
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   const [newClientName, setNewClientName] = useState('');
   const [newClientDoc, setNewClientDoc] = useState('');
+  const [newClientAddress, setNewClientAddress] = useState('');
+
+  // Auto-lookup for New Client Modal
+  useEffect(() => {
+    const fetchNewClientData = async () => {
+      // Validate length and open modal to avoid unnecessary calls
+      if (!showNewClientModal) return;
+
+      if (newClientDoc.length === 8) {
+        const data = await consultarDni(newClientDoc);
+        if (data) {
+          setNewClientName(`${data.nombres} ${data.apellidoPaterno} ${data.apellidoMaterno}`);
+          toast({ title: 'Cliente encontrado', description: 'Datos cargados de RENIEC' });
+        } else {
+          toast({ title: 'No encontrado', description: 'No se encontraron datos en RENIEC', variant: 'destructive' });
+        }
+      } else if (newClientDoc.length === 11) {
+        const data = await consultarRuc(newClientDoc);
+        if (data) {
+          setNewClientName(data.razonSocial);
+          setNewClientAddress(data.direccion || '');
+          toast({ title: 'Empresa encontrada', description: 'Datos cargados de SUNAT' });
+        } else {
+          toast({ title: 'No encontrado', description: 'No se encontraron datos en SUNAT', variant: 'destructive' });
+        }
+      }
+    };
+
+    if (newClientDoc.length === 8 || newClientDoc.length === 11) {
+      fetchNewClientData();
+    }
+  }, [newClientDoc, showNewClientModal, toast]);
 
   // Custom Item State
   const [showCustomItemModal, setShowCustomItemModal] = useState(false);
@@ -239,52 +304,81 @@ export default function POSVentas() {
       return;
     }
 
-    // TODO: Integrate with API SUNAT here
-    toast({
-      title: 'Próximamente',
-      description: `La emisión de ${documentType === 'boleta' ? 'Boleta' : 'Factura'} electrónica se integrará con API SUNAT`,
-    });
-
-    // For now, save as a regular sale with metadata
-    const transactionData = {
-      customerName: selectedClient ? selectedClient.name : customerName,
-      customerPhone: selectedClient ? (selectedClient.phone || '') : customerPhone,
-      customerEmail: selectedClient ? (selectedClient.email || '') : '',
-      items: cartItems,
-      date: new Date(),
-      total: total,
-      paymentMethod,
-      paymentType: 'contado' as const,
-      // Electronic document metadata
-      documentType,
-      customerDocument,
-      customerAddress,
-      subtotalSinIGV,
-      igv,
-    };
+    setIsEmitting(true);
 
     try {
-      const result = await createSale.mutateAsync(transactionData as any);
-      setLastSavedTransaction(result);
+      // 1. Determine serie and get next correlativo
+      const serie = documentType === 'boleta' ? 'B001' : 'F001';
+      const numero = await getNextDocumentNumber(serie);
 
-      // Show print preview
-      setShowPrintPreview(true);
-      setTimeout(() => {
-        handlePrint();
-        setShowPrintPreview(false);
-        setLastSavedTransaction(null);
-        
-        // Reset form
-        setCartItems([]);
-        setCustomerName('');
-        setCustomerPhone('');
-        setCustomerDocument('');
-        setCustomerAddress('');
-        setSelectedClient(null);
-      }, 100);
+      // 2. Build SUNAT request
+      const sunatRequest = buildDocumentRequest({
+        documentType,
+        serie,
+        numero,
+        customerDocType: documentType === 'factura' ? '6' : '1',
+        customerDocNumber: customerDocument || '00000000',
+        customerName: selectedClient ? selectedClient.name : (customerName || 'CLIENTE VARIOS'),
+        customerAddress: customerAddress || undefined,
+        items: cartItems.map((item) => ({
+          name: item.product.name,
+          quantity: item.quantity,
+          priceWithIgv: item.customPrice !== undefined ? item.customPrice : item.product.price,
+        })),
+        total,
+      });
 
-    } catch (error) {
-      console.error(error);
+      // 3. Call SUNAT API
+      const sunatResponse = await emitirComprobante(sunatRequest);
+
+      // 4. Process result
+      if (sunatResponse.success && sunatResponse.payload) {
+        const estado = sunatResponse.payload.estado;
+        const finalNumero = sunatResponse.finalNumero;
+
+        // 5. Save sale with SUNAT metadata
+        const transactionData = {
+          customerName: selectedClient ? selectedClient.name : customerName,
+          customerPhone: selectedClient ? (selectedClient.phone || '') : customerPhone,
+          customerEmail: selectedClient ? (selectedClient.email || '') : '',
+          items: cartItems,
+          date: new Date(),
+          total: total,
+          paymentMethod,
+          paymentType: 'contado' as const,
+          // SUNAT metadata
+          documentType,
+          documentSerie: serie,
+          documentNumber: finalNumero,
+          sunatEstado: estado,
+          sunatHash: sunatResponse.payload.hash,
+          sunatPdfUrl: sunatResponse.payload.pdf?.ticket || null,
+          sunatXmlUrl: sunatResponse.payload.xml || null,
+          customerDocument,
+          customerAddress,
+        };
+
+        const result = await createSale.mutateAsync(transactionData as any);
+        setLastSavedTransaction(result);
+        setSunatResult({ estado, serie, numero: finalNumero, message: sunatResponse.message });
+        setShowReceiptModal(true);
+      } else {
+        // API returned error
+        toast({
+          title: 'Error SUNAT',
+          description: sunatResponse.message || 'Error desconocido al emitir comprobante',
+          variant: 'destructive',
+        });
+      }
+    } catch (error: any) {
+      console.error('Error emitting document:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Error al emitir comprobante',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsEmitting(false);
     }
   };
 
@@ -294,18 +388,33 @@ export default function POSVentas() {
       documentId: newClientDoc,
       phone: '',
       email: '',
-      address: '',
+      address: newClientAddress,
       notes: ''
     } as any, {
       onSuccess: (newClient) => {
         setSelectedClient(newClient as Client);
         setCustomerName(newClient.name);
         setCustomerDocument(newClient.documentId || '');
+        setCustomerAddress(newClientAddress); // Update current sale address
         setShowNewClientModal(false);
         setNewClientName('');
         setNewClientDoc('');
+        setNewClientAddress('');
       }
     });
+  };
+
+  const handleCloseReceiptModal = () => {
+    setShowReceiptModal(false);
+    setSunatResult(null);
+    setLastSavedTransaction(null);
+    // Reset form
+    setCartItems([]);
+    setCustomerName('');
+    setCustomerPhone('');
+    setCustomerDocument('');
+    setCustomerAddress('');
+    setSelectedClient(null);
   };
 
   const getPrintData = (): PrintableDocumentData => {
@@ -425,6 +534,14 @@ export default function POSVentas() {
                     placeholder="Documento de identidad"
                   />
                 </div>
+                 <div className="grid gap-2">
+                  <Label>Dirección (Opcional)</Label>
+                  <Input
+                    value={newClientAddress}
+                    onChange={(e) => setNewClientAddress(e.target.value)}
+                    placeholder="Dirección fiscal"
+                  />
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setShowNewClientModal(false)}>Cancelar</Button>
@@ -538,7 +655,15 @@ export default function POSVentas() {
                         </div>
                       </CommandEmpty>
                       <CommandGroup>
-                        {clients.map((client) => (
+                        {clients
+                          .filter((client) => {
+                            // En Factura, solo mostrar clientes con RUC (11 dígitos)
+                            if (documentType === 'factura') {
+                              return client.documentId && client.documentId.length === 11;
+                            }
+                            return true;
+                          })
+                          .map((client) => (
                           <CommandItem
                             key={client.id}
                             value={client.name}
@@ -568,48 +693,7 @@ export default function POSVentas() {
                 </PopoverContent>
               </Popover>
 
-              {/* Document-specific fields */}
-              {documentType === 'factura' ? (
-                <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <p className="text-xs font-medium text-blue-700">Datos para Factura (Obligatorios)</p>
-                  <Input
-                    placeholder="RUC (11 dígitos) *"
-                    value={customerDocument}
-                    onChange={(e) => setCustomerDocument(e.target.value)}
-                    maxLength={11}
-                  />
-                  <Input
-                    placeholder="Razón Social *"
-                    value={customerName}
-                    onChange={(e) => {
-                      setCustomerName(e.target.value);
-                      setSelectedClient(null);
-                    }}
-                  />
-                  <Input
-                    placeholder="Dirección Fiscal"
-                    value={customerAddress}
-                    onChange={(e) => setCustomerAddress(e.target.value)}
-                  />
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  <Input
-                    placeholder="DNI (opcional)"
-                    value={customerDocument}
-                    onChange={(e) => setCustomerDocument(e.target.value)}
-                    maxLength={8}
-                  />
-                  <Input
-                    placeholder="Nombre (opcional)"
-                    value={customerName}
-                    onChange={(e) => {
-                      setCustomerName(e.target.value);
-                      setSelectedClient(null);
-                    }}
-                  />
-                </div>
-              )}
+              {/* Document-specific fields logic removed per user request - rely on Client Selector */}
             </div>
 
             {/* Cart Items */}
@@ -769,21 +853,185 @@ export default function POSVentas() {
             <Button
               className="w-full mt-4 h-12 text-lg gap-2"
               onClick={handleEmitDocument}
-              disabled={cartItems.length === 0}
+              disabled={cartItems.length === 0 || isEmitting}
             >
-              <Receipt className="h-5 w-5" />
-              Emitir {documentType === 'boleta' ? 'Boleta' : 'Factura'}
+              {isEmitting ? (
+                <span className="animate-pulse">Emitiendo...</span>
+              ) : (
+                <>
+                  <Receipt className="h-5 w-5" />
+                  Emitir {documentType === 'boleta' ? 'Boleta' : 'Factura'}
+                </>
+              )}
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Hidden Print Component */}
-      {showPrintPreview && lastSavedTransaction && (
-        <div className="fixed left-[-9999px] top-0">
-          <PrintableDocument ref={printRef} data={getPrintData()} settings={settings} />
-        </div>
-      )}
+      {/* Receipt Modal after SUNAT emission */}
+      <Dialog open={showReceiptModal} onOpenChange={(open) => { if (!open) handleCloseReceiptModal(); }}>
+        <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {sunatResult?.estado === 'ACEPTADO' && <span className="text-green-500 text-xl">✅</span>}
+              {sunatResult?.estado === 'PENDIENTE' && <span className="text-yellow-500 text-xl">⏳</span>}
+              {sunatResult?.estado === 'RECHAZADO' && <span className="text-red-500 text-xl">❌</span>}
+              Comprobante {sunatResult?.estado}
+            </DialogTitle>
+          </DialogHeader>
+
+          {sunatResult && (
+            <div className="rounded-lg bg-muted/50 p-3 text-sm space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Tipo:</span>
+                <span className="font-medium capitalize">{documentType}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Serie-Número:</span>
+                <span className="font-medium">{sunatResult.serie}-{sunatResult.numero}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total:</span>
+                <span className="font-bold text-lg">S/ {total.toFixed(2)}</span>
+              </div>
+              <p className="text-xs text-muted-foreground text-center pt-1">{sunatResult.message}</p>
+            </div>
+          )}
+
+          {/* Receipt Preview */}
+          {lastSavedTransaction && (
+            <div className="flex-1 overflow-auto border rounded-lg bg-white" id="receipt-print-area">
+              <div ref={printRef} className="p-4 text-sm text-black font-mono leading-tight">
+                {/* Header */}
+                <div className="text-center mb-4">
+                  <h2 className="font-bold text-sm uppercase">{settings?.name || 'FERRETERIA AMIGA'}</h2>
+                  <p className="text-xs uppercase">{settings?.name || 'FERRETERIA AMIGA'}</p> 
+                  <p className="text-xs uppercase font-bold">RUC: {settings?.ruc || '10408724771'}</p>
+                  
+                  <div className="mt-3 font-bold text-base uppercase">
+                    {documentType === 'factura' ? 'FACTURA' : 'BOLETA'} DE VENTA
+                  </div>
+                  <div className="font-bold text-base uppercase">
+                    {sunatResult?.serie || 'B001'} - {(sunatResult?.numero || 0).toString().padStart(6, '0')}
+                  </div>
+                </div>
+
+                {/* Client Info */}
+                <div className="mb-2 text-xs uppercase space-y-0.5">
+                  <div className="flex"><span className="font-bold w-16 shrink-0">Cliente:</span> <span>{lastSavedTransaction?.customerName || (customerName || 'CLIENTE VARIOS')}</span></div>
+                  <div className="flex"><span className="font-bold w-16 shrink-0">DNI:</span> <span>{lastSavedTransaction?.customerDocument || (customerDocument || '')}</span></div>
+                  <div className="flex"><span className="font-bold w-16 shrink-0">Fecha:</span> <span>{new Date().toLocaleDateString('es-PE')} {new Date().toLocaleTimeString('es-PE', {hour: '2-digit', minute:'2-digit'})}</span></div>
+                </div>
+                
+                <hr className="border-black border-t-2 mb-2" />
+
+                {/* Detalle */}
+                <div className="text-xs mb-2">
+                  <div className="font-bold mb-1">Detalle</div>
+                  <div className="border-b border-black border-dotted mb-1"></div>
+                  <div className="flex font-bold text-[10px] mb-1">
+                      <span className="w-8 text-center">Cant</span>
+                      <span className="w-8 text-center">U.M</span>
+                      <span className="w-12 text-right ml-auto">Precio</span>
+                      <span className="w-12 text-right">Total</span>
+                  </div>
+                  <div className="border-b border-black border-dotted mb-1"></div>
+
+                  {cartItems.map((item, i) => {
+                      const price = item.customPrice ?? item.product.price;
+                      const subtotal = price * item.quantity;
+                      return (
+                        <div key={i} className="mb-2 text-[11px]">
+                          <div className="uppercase font-medium">{item.product.name}</div>
+                          <div className="flex">
+                            <span className="w-8 text-center">{item.quantity}</span>
+                            <span className="w-8 text-center">NIU</span>
+                            <span className="w-12 text-right ml-auto">{price.toFixed(2)}</span>
+                            <span className="w-12 text-right">{subtotal.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      );
+                  })}
+                </div>
+                
+                <hr className="border-black border-dotted mb-2" />
+
+                {/* Totals */}
+                <div className="text-right text-xs space-y-1 font-mono">
+                  <div className="flex justify-end">
+                    <span className="mr-8">Total Gravado (S/):</span>
+                    <span>{subtotalSinIGV.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-end">
+                      <span className="mr-8">IGV 18% (S/):</span>
+                      <span>{igv.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-end font-bold text-sm mt-1">
+                      <span className="mr-8">Total (S/):</span>
+                      <span>{total.toFixed(2)}</span>
+                  </div>
+                </div>
+                
+                <hr className="border-black border-t-2 my-2" />
+
+                {/* Amount in words */}
+                <div className="text-xs mb-2 uppercase">
+                  <span className="font-bold">SON: </span>
+                  {numberToText(total)}
+                </div>
+                
+                <div className="text-xs mb-4">
+                  <span className="font-bold">Cond. Venta: </span> <span className="uppercase">{paymentMethod}</span>
+                </div>
+
+                {/* QR */}
+                <div className="flex justify-center mb-2">
+                    <div className="border border-black p-1">
+                      <ScanBarcode className="w-20 h-20 text-black" />
+                    </div>
+                </div>
+                
+                <div className="text-center text-[9px] uppercase space-y-0.5">
+                  <p>Hash:</p>
+                  <p className="break-all font-mono text-[8px] mb-2">{sunatResult?.message || lastSavedTransaction?.sunatHash || 'PENDIENTE'}</p>
+                  <p>Representación Impresa de la</p>
+                  <p>{documentType === 'factura' ? 'FACTURA' : 'BOLETA'} DE VENTA ELECTRÓNICA</p>
+                  <p>Puede consultar en: www.apisunat.pe</p>
+                  <p>Autorizado con Resolución N°034-005-0012997/SUNAT</p>
+                  
+                  <p className="mt-4 italic normal-case">Generated by FerrePOS</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex gap-2 sm:gap-2">
+            <Button variant="outline" onClick={handleCloseReceiptModal}>
+              Cerrar
+            </Button>
+            <Button onClick={() => {
+              if (!printRef.current) return;
+              // Inject print CSS to hide everything except the receipt
+              const style = document.createElement('style');
+              style.id = 'receipt-print-style';
+              style.textContent = `
+                @media print {
+                  body * { visibility: hidden !important; }
+                  #receipt-print-area, #receipt-print-area * { visibility: visible !important; }
+                  #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; }
+                }
+              `;
+              document.head.appendChild(style);
+              window.print();
+              // Remove the style after printing
+              setTimeout(() => { document.getElementById('receipt-print-style')?.remove(); }, 500);
+            }} className="gap-2">
+              <Printer className="h-4 w-4" />
+              Imprimir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
