@@ -29,7 +29,7 @@ import { numberToText } from '@/lib/numberToText';
 // Hooks
 import { useProducts } from '@/hooks/useProducts';
 import { useSales, getNextDocumentNumber } from '@/hooks/useTransactions';
-import { buildDocumentRequest, emitirComprobante, consultarDni, consultarRuc } from '@/lib/apiSunat';
+import { buildDocumentRequest, emitirComprobante, consultarDni, consultarRuc, ANONYMOUS_CLIENT } from '@/lib/apiSunat';
 import { useBusinessSettings } from '@/hooks/useBusinessSettings';
 import { useClients } from '@/hooks/useClients';
 import { Client } from '@/types';
@@ -315,10 +315,11 @@ export default function POSVentas() {
         documentType,
         serie,
         numero,
-        customerDocType: documentType === 'factura' ? '6' : '1',
-        customerDocNumber: customerDocument || '00000000',
-        customerName: selectedClient ? selectedClient.name : (customerName || 'CLIENTE VARIOS'),
-        customerAddress: customerAddress || undefined,
+        customerDocType: documentType === 'factura' ? '6' : ANONYMOUS_CLIENT.tipo_de_documento,
+        // Si no hay DNI, usar el generico 99999999 para boletas
+        customerDocNumber: customerDocument || ANONYMOUS_CLIENT.numero_de_documento,
+        customerName: selectedClient ? selectedClient.name : (customerName || ANONYMOUS_CLIENT.denominacion),
+        customerAddress: customerAddress || ANONYMOUS_CLIENT.direccion,
         items: cartItems.map((item) => ({
           name: item.product.name,
           quantity: item.quantity,

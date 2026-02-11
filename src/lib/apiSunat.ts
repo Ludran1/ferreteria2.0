@@ -12,6 +12,14 @@ const BASE_URL = APISUNAT_ENV === 'production'
 
 const ENDPOINT = `${BASE_URL}/api/v3/documents`;
 
+export const ANONYMOUS_CLIENT = {
+  // Para boletas sin cliente específico (menores a S/ 700 o configuración general)
+  tipo_de_documento: '1',
+  numero_de_documento: '99999999',
+  denominacion: 'CLIENTE VARIOS',
+  direccion: '-'
+} as const;
+
 // Types
 export interface SunatItem {
   unidad_de_medida: string;
