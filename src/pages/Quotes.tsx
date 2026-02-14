@@ -93,11 +93,16 @@ export default function Quotes() {
   const [customItemName, setCustomItemName] = useState('');
   const [customItemPrice, setCustomItemPrice] = useState('');
 
-  const handleAddCustomItem = () => {
+  const [customItemQuantity, setCustomItemQuantity] = useState('1');
+
+  const handleAddCustomItem = (keepOpen = false) => {
     if (!customItemName || !customItemPrice) return;
 
     const price = parseFloat(customItemPrice);
+    const quantity = parseFloat(customItemQuantity);
+    
     if (isNaN(price)) return;
+    if (isNaN(quantity) || quantity <= 0) return;
 
     const manualProduct: Product = {
       id: `manual-${Date.now()}`,
@@ -108,15 +113,27 @@ export default function Quotes() {
       sku: 'MANUAL',
     };
 
-    addToCart(manualProduct);
-    setShowCustomItemModal(false);
-    setCustomItemName('');
-    setCustomItemPrice('');
+    addToCart(manualProduct, quantity);
     
-    toast({
-      title: 'Item agregado',
-      description: `${customItemName} añadido a la cotización`,
-    });
+    if (keepOpen) {
+        setCustomItemName('');
+        setCustomItemPrice('');
+        setCustomItemQuantity('1');
+        document.getElementById('manual-item-name')?.focus();
+        toast({
+            title: 'Item agregado',
+            description: `${customItemName} añadido. Listo para el siguiente.`,
+        });
+    } else {
+        setShowCustomItemModal(false);
+        setCustomItemName('');
+        setCustomItemPrice('');
+        setCustomItemQuantity('1');
+        toast({
+            title: 'Item agregado',
+            description: `${customItemName} añadido a la cotización`,
+        });
+    }
   };
 
   const handleBarcodeScan = useCallback((barcode: string) => {
@@ -165,17 +182,17 @@ export default function Quotes() {
     currentPage * PRODUCTS_PER_PAGE
   );
 
-  const addToCart = (product: Product) => {
+  const addToCart = (product: Product, quantity: number = 1) => {
     setCartItems((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
       if (existing) {
         return prev.map((item) =>
           item.product.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
+            ? { ...item, quantity: item.quantity + quantity }
             : item
         );
       }
-      return [...prev, { product, quantity: 1 }];
+      return [...prev, { product, quantity }];
     });
   };
 
@@ -356,7 +373,7 @@ export default function Quotes() {
                 <div className="grid gap-2">
                   <Label htmlFor="name">Descripción / Producto</Label>
                   <Input
-                    id="name"
+                    id="manual-item-name"
                     value={customItemName}
                     onChange={(e) => setCustomItemName(e.target.value)}
                     placeholder="Ej. Servicio de Flete"
@@ -375,15 +392,34 @@ export default function Quotes() {
                       className="pl-8"
                       placeholder="0.00"
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleAddCustomItem();
+                        if (e.key === 'Enter') document.getElementById('quantity')?.focus();
                       }}
                     />
                   </div>
                 </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="quantity">Cantidad</Label>
+                  <Input
+                    id="quantity"
+                    type="number"
+                    value={customItemQuantity}
+                    onChange={(e) => setCustomItemQuantity(e.target.value)}
+                    placeholder="1"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddCustomItem(true);
+                    }}
+                  />
+                </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setShowCustomItemModal(false)}>Cancelar</Button>
-                <Button onClick={handleAddCustomItem}>Agregar</Button>
+                <Button variant="outline" onClick={() => setShowCustomItemModal(false)}>Terminar</Button>
+                <Button 
+                    variant="default" 
+                    onClick={() => handleAddCustomItem(true)}
+                    title="Agregar y continuar"
+                >
+                    <Plus className="h-4 w-4" />
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
