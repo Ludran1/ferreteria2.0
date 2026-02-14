@@ -145,7 +145,14 @@ export default function Sales() {
     try {
       const canvas = await html2canvas(receiptRef.current, {
         backgroundColor: '#ffffff',
-        scale: 2, 
+        scale: 2,
+        onclone: (clonedDoc) => {
+            const container = clonedDoc.getElementById('receipt-items-container');
+            if (container) {
+                container.style.maxHeight = 'none';
+                container.style.overflow = 'visible';
+            }
+        } 
       });
 
       canvas.toBlob(async (blob) => {
@@ -493,7 +500,7 @@ export default function Sales() {
                             <p className="text-base text-black">{viewSale.customerName}</p>
                         </div>
 
-                        <div className="border rounded-lg p-3 bg-secondary/20 max-h-[300px] overflow-y-auto">
+                        <div id="receipt-items-container" className="border rounded-lg p-3 bg-secondary/20 max-h-[300px] overflow-y-auto">
                             <p className="text-sm font-medium text-muted-foreground mb-2">Productos</p>
                             <ul className="space-y-2 text-sm">
                                 {viewSale.items.map((item, i) => {
