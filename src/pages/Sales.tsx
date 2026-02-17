@@ -98,16 +98,33 @@ export default function Sales() {
         numero: saleToVoid.documentNumber!,
       });
 
-      if (result.success) {
+      // Check for success OR if already voided/processing (to sync status)
+      const msg = result.message?.toLowerCase() || '';
+      const isSuccess = result.success || 
+        msg.includes('ya se encuentra anulado') || 
+        msg.includes('previamente') ||
+        msg.includes('comunicacion de baja') ||
+        msg.includes('comunicado para su baja') ||
+        msg.includes('ya fue comunicado');
+
+      if (isSuccess) {
         await updateSaleStatus.mutateAsync({ saleId: saleToVoid.id, status: 'ANULADO' });
-        toast({
-          title: '✅ Comprobante Anulado',
-          description: `${saleToVoid.documentSerie}-${saleToVoid.documentNumber} fue anulado correctamente`,
-        });
+        
+        if (!result.success) {
+           toast({
+             title: '⚠️ Sincronizado',
+             description: `El documento ya figuraba como anulado en SUNAT. Se actualizó el estado local.`,
+           });
+        } else {
+           toast({
+             title: '✅ Comprobante Anulado',
+             description: `${saleToVoid.documentSerie}-${saleToVoid.documentNumber} fue anulado correctamente`,
+           });
+        }
       } else {
         toast({
           title: 'Error al anular',
-          description: result.message,
+          description: result.message || 'No se pudo anular',
           variant: 'destructive',
         });
       }

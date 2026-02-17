@@ -324,12 +324,14 @@ export async function anularComprobante(params: AnularRequest): Promise<AnularRe
         documento_afectado: {
           documento: 'factura',
           serie: params.serie,
-          numero: params.numero,
+          numero: String(params.numero),
         },
       };
 
-  console.log('[SUNAT] Anulando comprobante:', JSON.stringify(requestBody, null, 2));
-  console.log('[SUNAT] Endpoint:', endpoint);
+  if (import.meta.env.DEV) {
+    console.log('[SUNAT] Anulando comprobante:', JSON.stringify(requestBody, null, 2));
+    console.log('[SUNAT] Endpoint:', endpoint);
+  }
 
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -340,8 +342,17 @@ export async function anularComprobante(params: AnularRequest): Promise<AnularRe
     body: JSON.stringify(requestBody),
   });
 
-  const data: AnularResponse = await response.json();
-  console.log('[SUNAT] Respuesta anulación:', JSON.stringify(data, null, 2));
+  const rawData = await response.json();
+  
+  const data: AnularResponse = {
+    success: rawData.success === true,
+    message: rawData.message || (rawData.error ? JSON.stringify(rawData.error) : 'Respuesta sin mensaje'),
+    payload: rawData.payload || rawData.data
+  };
+  
+  if (import.meta.env.DEV) {
+    console.log('[SUNAT] Respuesta anulación:', JSON.stringify(data, null, 2));
+  }
 
   return data;
 }
