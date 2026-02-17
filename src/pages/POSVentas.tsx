@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -990,57 +991,69 @@ export default function POSVentas() {
 
           {/* Receipt Preview */}
           {lastSavedTransaction && (
-            <div className="flex-1 overflow-auto border rounded-lg bg-white">
-              <ThermalReceipt
-                ref={printRef}
-                data={{
-                  title: documentType === 'factura' ? 'FACTURA DE VENTA ELECTRONICA' : 'BOLETA DE VENTA ELECTRONICA',
-                  serie: sunatResult?.serie || 'B001',
-                  number: (sunatResult?.numero || 0).toString().padStart(6, '0'),
-                  customerName: lastSavedTransaction?.customerName || customerName || 'CLIENTE VARIOS',
-                  customerDocument: lastSavedTransaction?.customerDocument || customerDocument || '',
-                  date: new Date(),
-                  items: cartItems.map(item => {
-                    const price = item.customPrice ?? item.product.price;
-                    return {
-                      name: item.product.name,
-                      quantity: item.quantity,
-                      price,
-                      total: price * item.quantity,
-                    };
-                  }),
-                  subtotal: subtotalSinIGV,
-                  igv,
-                  total,
-                  paymentMethod,
-                  sunatHash: sunatResult?.hash || '',
-                  isElectronic: true,
-                }}
-              />
-            </div>
+            (() => {
+              const receiptData = {
+                title: documentType === 'factura' ? 'FACTURA DE VENTA ELECTRONICA' : 'BOLETA DE VENTA ELECTRONICA',
+                serie: sunatResult?.serie || 'B001',
+                number: (sunatResult?.numero || 0).toString().padStart(6, '0'),
+                customerName: lastSavedTransaction?.customerName || customerName || 'CLIENTE VARIOS',
+                customerDocument: lastSavedTransaction?.customerDocument || customerDocument || '',
+                date: new Date(),
+                items: cartItems.map(item => {
+                  const price = item.customPrice ?? item.product.price;
+                  return {
+                    name: item.product.name,
+                    quantity: item.quantity,
+                    price,
+                    total: price * item.quantity,
+                  };
+                }),
+                subtotal: subtotalSinIGV,
+                igv,
+                total,
+                paymentMethod,
+                sunatHash: sunatResult?.hash || '',
+                isElectronic: true,
+              };
+
+              return (
+                <>
+                  <div className="flex-1 overflow-auto border rounded-lg bg-white">
+                    <ThermalReceipt ref={printRef} data={receiptData} />
+                  </div>
+
+                  {/* Print Portal - Rendered directly in body for clean printing */}
+                  {showReceiptModal && createPortal(
+                    <div id="pos-print-portal" style={{ display: 'none' }}>
+                      <ThermalReceipt data={receiptData} />
+                      <style>{`
+                        @media print {
+                          body > * { display: none !important; }
+                          #pos-print-portal { 
+                            display: block !important; 
+                            position: absolute; 
+                            top: 0; 
+                            left: 0; 
+                            width: 80mm; 
+                            margin: 0; 
+                            padding: 0;
+                          }
+                          @page { size: 80mm auto; margin: 0; }
+                        }
+                      `}</style>
+                    </div>,
+                    document.body
+                  )}
+                </>
+              );
+            })()
           )}
 
           <DialogFooter className="flex gap-2 sm:gap-2">
             <Button variant="outline" onClick={handleCloseReceiptModal}>
               Cerrar
             </Button>
-            <Button onClick={() => {
-              if (!printRef.current) return;
-              // Inject print CSS to hide everything except the receipt
-              const style = document.createElement('style');
-              style.id = 'receipt-print-style';
-              style.textContent = `
-                @media print {
-                  body * { visibility: hidden !important; }
-                  #receipt-print-area, #receipt-print-area * { visibility: visible !important; }
-                  #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; }
-                }
-              `;
-              document.head.appendChild(style);
-              window.print();
-              // Remove the style after printing
-              setTimeout(() => { document.getElementById('receipt-print-style')?.remove(); }, 500);
-            }} className="gap-2">
+            <Button onClick={() => window.print()} className="gap-2">
               <Printer className="h-4 w-4" />
               Imprimir
             </Button>
