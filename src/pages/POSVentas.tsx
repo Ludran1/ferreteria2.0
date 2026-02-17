@@ -1,9 +1,10 @@
 import { useState, useCallback, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Product, QuoteItem, PrintableDocumentData } from '@/types';
-import { Plus, Search, Minus, Trash2, FileText, ShoppingCart, ScanBarcode, Edit2, Printer, Receipt } from 'lucide-react';
+import { Plus, Search, Minus, Trash2, FileText, ShoppingCart, ScanBarcode, Edit2, Printer, Receipt, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -52,6 +53,18 @@ export default function POSVentas() {
   // Hooks Data
   const { products: availableProducts } = useProducts();
   const { createSale } = useSales();
+  const queryClient = useQueryClient();
+
+  const handleSync = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['products'] }),
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
+    ]);
+    toast({
+      title: 'Datos sincronizados',
+      description: 'Se han actualizado productos y clientes.',
+    });
+  };
 
   const [searchTerm, setSearchTerm] = useState('');
   const [cartItems, setCartItems] = useState<QuoteItem[]>([]);
@@ -484,6 +497,14 @@ export default function POSVentas() {
               title={scannerActive ? 'Escáner activo' : 'Escáner inactivo'}
             >
               <ScanBarcode className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleSync}
+              title="Sincronizar datos"
+            >
+              <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
 

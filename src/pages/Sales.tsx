@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -85,38 +86,63 @@ export default function Sales() {
     .filter(s => isSameMonth(new Date(s.date), selectedMonth))
     .reduce((sum, sale) => sum + sale.total, 0);
 
+  /* New Print Handlers using Portal */
   const handlePrintSale = (sale: Sale) => {
     setSaleToPrint(sale);
-    setTimeout(() => {
-      // Inject print CSS to hide everything except the receipt
+  };
+
+  useEffect(() => {
+    if (saleToPrint) {
+      // 1. Create a style element to hide everything except the portal
       const style = document.createElement('style');
-      style.id = 'receipt-print-style';
+      style.id = 'print-portal-style';
       style.textContent = `
         @media print {
-          @page { margin: 0; size: 80mm auto; }
-          body { margin: 0 !important; padding: 0 !important; }
-          body * { visibility: hidden !important; }
-          #receipt-print-area, #receipt-print-area * { visibility: visible !important; }
-          #receipt-print-area { 
-            position: fixed !important; 
-            left: 0 !important; 
-            top: 0 !important; 
-            width: 80mm !important;
+          html, body {
+            height: auto !important;
+            overflow: hidden !important;
             margin: 0 !important;
             padding: 0 !important;
-            background: white !important;
           }
+          body > *:not(.print-portal) { display: none !important; }
+          .print-portal { 
+            display: block !important; 
+            position: static !important; 
+            width: 80mm; 
+            margin: 0;
+            padding: 0;
+            background: white;
+            overflow: visible !important;
+            page-break-after: auto;
+            page-break-inside: avoid;
+          }
+          @page { margin: 0; size: 80mm auto; }
         }
       `;
       document.head.appendChild(style);
-      window.print();
-      // Remove the style after printing
-      setTimeout(() => { 
-        document.getElementById('receipt-print-style')?.remove(); 
-        setSaleToPrint(null); 
-      }, 500);
-    }, 100);
-  };
+
+      // 2. Wait for render (portal to be inserted)
+      const printTimer = setTimeout(() => {
+        window.print();
+        
+        // 3. Cleanup after print dialog
+        // We use a small delay because window.print() is blocking in most browsers,
+        // but on some, logic might resume immediately.
+        // The user effectively closes the dialog to resume.
+        const cleanupTimer = setTimeout(() => {
+          document.getElementById('print-portal-style')?.remove();
+          setSaleToPrint(null);
+        }, 500);
+        
+        return () => clearTimeout(cleanupTimer);
+      }, 100);
+
+      return () => {
+        clearTimeout(printTimer);
+        document.getElementById('print-portal-style')?.remove();
+      };
+    }
+  }, [saleToPrint]);
 
   const handleCopySale = (item: any) => {
     // Save to localStorage to load in Quoter/POS
@@ -538,10 +564,12 @@ export default function Sales() {
       </Dialog>
 
       {/* Hidden Print Component */}
-      {saleToPrint && (
-        <div style={{ position: 'fixed', left: '-9999px', top: 0 }}>
-          <ThermalReceipt ref={printRef} data={getThermalReceiptData(saleToPrint)} />
-        </div>
+      {/* Portal Print Component */}
+      {saleToPrint && createPortal(
+        <div className="print-portal">
+          <ThermalReceipt data={getThermalReceiptData(saleToPrint)} />
+        </div>,
+        document.body
       )}
     </MainLayout>
   );
