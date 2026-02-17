@@ -1,6 +1,6 @@
 
 import { forwardRef } from 'react';
-import { ScanBarcode } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { numberToText } from '@/lib/numberToText';
 
 export interface ReceiptItem {
@@ -36,10 +36,10 @@ export const ThermalReceipt = forwardRef<HTMLDivElement, ThermalReceiptProps>(
       <div ref={ref} className="w-[80mm] p-4 text-xs text-black bg-white" id="receipt-print-area">
         {/* Header */}
         <div className="text-center mb-4 space-y-1">
-          <h2 className="font-bold text-lg uppercase">Ferretería Amiga</h2>
-          <p>RUC: 20123456789</p>
-          <p className="text-[10px] break-words">Av. Principal 123, Lima</p>
-          <p className="text-[10px]">Telf: (01) 123-4567</p>
+          <h2 className="font-bold text-lg uppercase">Ferreteria Virgen de Guadalupe</h2>
+          <p>RUC: 10408724771</p>
+          <p className="text-[10px] break-words">Coop Villa los periodista Mz G Lt 1 - ATE - LIMA</p>
+          <p className="text-[10px]">Telf: 975 495 081 / 946 367 808</p>
           
           <div className="border-t-2 border-b-2 border-black border-dashed py-1 my-2">
             <div className="font-bold text-sm uppercase">{data.title}</div>
@@ -53,15 +53,15 @@ export const ThermalReceipt = forwardRef<HTMLDivElement, ThermalReceiptProps>(
         <div className="mb-2 text-xs uppercase space-y-0.5">
           <div className="flex">
             <span className="font-bold w-16 shrink-0">Cliente:</span> 
-            <span className="break-words flex-1 text-right">{data.customerName || 'CLIENTE VARIOS'}</span>
+            <span className="break-words flex-1 text-left">{data.customerName || 'CLIENTE VARIOS'}</span>
           </div>
           <div className="flex">
             <span className="font-bold w-16 shrink-0">DOC:</span> 
-            <span className="text-right flex-1">{data.customerDocument || '-'}</span>
+            <span className="text-left flex-1">{data.customerDocument || '-'}</span>
           </div>
           <div className="flex">
             <span className="font-bold w-16 shrink-0">Fecha:</span> 
-            <span className="text-right flex-1">{data.date.toLocaleDateString('es-PE')} {data.date.toLocaleTimeString('es-PE', {hour: '2-digit', minute:'2-digit'})}</span>
+            <span className="text-left flex-1">{data.date.toLocaleDateString('es-PE')} {data.date.toLocaleTimeString('es-PE', {hour: '2-digit', minute:'2-digit'})}</span>
           </div>
         </div>
         
@@ -69,7 +69,7 @@ export const ThermalReceipt = forwardRef<HTMLDivElement, ThermalReceiptProps>(
 
         {/* Detalle */}
         <div className="text-xs mb-2">
-          <div className="flex font-bold text-[10px] mb-1">
+          <div className="flex font-bold text-[12px] mb-1">
               <span className="w-8 text-center">Cant</span>
               <span className="flex-1 text-left px-1">Desc</span>
               <span className="w-12 text-right">P.U</span>
@@ -78,7 +78,7 @@ export const ThermalReceipt = forwardRef<HTMLDivElement, ThermalReceiptProps>(
           <div className="border-b border-black border-dotted mb-1"></div>
 
           {data.items.map((item, i) => (
-            <div key={i} className="mb-1 text-[11px]">
+            <div key={i} className="mb-1 text-[13px]">
               <div className="uppercase font-medium mb-0.5">{item.name}</div>
               <div className="flex items-start">
                 <span className="w-8 text-center">{item.quantity}</span>
@@ -124,13 +124,19 @@ export const ThermalReceipt = forwardRef<HTMLDivElement, ThermalReceiptProps>(
         {data.isElectronic && (
             <div className="flex flex-col items-center space-y-2 mt-4">
                 <div className="border border-black p-1">
-                  <ScanBarcode className="w-20 h-20 text-black" />
+                  <QRCodeSVG 
+                    value={data.sunatHash || 'PENDIENTE'} 
+                    size={80} 
+                    level="M"
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                  />
                 </div>
                 
                 <div className="text-center text-[9px] uppercase space-y-0.5 w-full">
-                  <div className="flex justify-between w-full">
-                    <span>Hash:</span>
-                    <span className="font-mono text-[8px] break-all">{data.sunatHash || 'PENDIENTE'}</span>
+                  <div className="w-full text-left">
+                    <span className="font-bold">Hash:</span>
+                    <p className="font-mono text-[9px] break-all leading-tight mt-0.5">{data.sunatHash || 'PENDIENTE'}</p>
                   </div>
                   <p className="mt-2 font-bold">Representación Impresa de la</p>
                   <p className="font-bold">{data.title} ELECTRÓNICA</p>

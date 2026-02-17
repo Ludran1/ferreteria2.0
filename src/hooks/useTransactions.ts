@@ -157,6 +157,8 @@ export function useSales() {
         documentSerie: sale.document_serie,
         documentNumber: sale.document_number,
         sunatEstado: sale.sunat_estado,
+        sunatHash: sale.sunat_hash,
+        customerDocument: sale.customer_document,
       })) as Sale[];
     },
   });

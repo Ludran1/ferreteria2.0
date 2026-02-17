@@ -36,6 +36,7 @@ export interface SunatDocumentRequest {
   serie: string;
   numero: number;
   fecha_de_emision: string; // YYYY-MM-DD
+  fecha_de_vencimiento?: string; // YYYY-MM-DD
   hora_de_emision?: string; // HH:mm:ss
   moneda: string;
   tipo_operacion: string;
@@ -109,6 +110,7 @@ export function buildDocumentRequest(params: {
     numero: params.numero,
     fecha_de_emision: fecha,
     hora_de_emision: hora,
+    fecha_de_vencimiento: fecha, // Para venta al contado, misma fecha
     moneda: 'PEN',
     tipo_operacion: '0101', // Venta interna
     cliente_tipo_de_documento: params.customerDocType,

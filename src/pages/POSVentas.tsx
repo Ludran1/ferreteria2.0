@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Product, QuoteItem, PrintableDocumentData } from '@/types';
 import { Plus, Search, Minus, Trash2, FileText, ShoppingCart, ScanBarcode, Edit2, Printer, Receipt, RefreshCw } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
+import { ThermalReceipt } from '@/components/print/ThermalReceipt';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -78,7 +80,7 @@ export default function POSVentas() {
   const [lastSavedTransaction, setLastSavedTransaction] = useState<any>(null);
   const [isEmitting, setIsEmitting] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
-  const [sunatResult, setSunatResult] = useState<{ estado: string; serie: string; numero: number; message: string } | null>(null);
+  const [sunatResult, setSunatResult] = useState<{ estado: string; serie: string; numero: number; message: string; hash: string } | null>(null);
   
 
   
@@ -324,6 +326,18 @@ export default function POSVentas() {
       }
     }
 
+    // Boletas mayores a S/ 700 requieren DNI del cliente
+    if (documentType === 'boleta' && total > 700) {
+      if (!customerDocument || customerDocument.trim().length < 8) {
+        toast({
+          title: 'DNI Requerido',
+          description: 'Para boletas mayores a S/ 700.00 es obligatorio seleccionar un cliente con DNI',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     if (cartItems.length === 0) {
       toast({
         title: 'Error',
@@ -390,7 +404,7 @@ export default function POSVentas() {
 
         const result = await createSale.mutateAsync(transactionData as any);
         setLastSavedTransaction(result);
-        setSunatResult({ estado, serie, numero: finalNumero, message: sunatResponse.message });
+        setSunatResult({ estado, serie, numero: finalNumero, message: sunatResponse.message, hash: sunatResponse.payload.hash });
         setShowReceiptModal(true);
       } else {
         // API returned error
@@ -976,108 +990,33 @@ export default function POSVentas() {
 
           {/* Receipt Preview */}
           {lastSavedTransaction && (
-            <div className="flex-1 overflow-auto border rounded-lg bg-white" id="receipt-print-area">
-              <div ref={printRef} className="p-4 text-sm text-black font-mono leading-tight">
-                {/* Header */}
-                <div className="text-center mb-4">
-                  <h2 className="font-bold text-sm uppercase">{settings?.name || 'FERRETERIA AMIGA'}</h2>
-                  <p className="text-xs uppercase">{settings?.name || 'FERRETERIA AMIGA'}</p> 
-                  <p className="text-xs uppercase font-bold">RUC: {settings?.ruc || '10408724771'}</p>
-                  
-                  <div className="mt-3 font-bold text-base uppercase">
-                    {documentType === 'factura' ? 'FACTURA' : 'BOLETA'} DE VENTA
-                  </div>
-                  <div className="font-bold text-base uppercase">
-                    {sunatResult?.serie || 'B001'} - {(sunatResult?.numero || 0).toString().padStart(6, '0')}
-                  </div>
-                </div>
-
-                {/* Client Info */}
-                <div className="mb-2 text-xs uppercase space-y-0.5">
-                  <div className="flex"><span className="font-bold w-16 shrink-0">Cliente:</span> <span>{lastSavedTransaction?.customerName || (customerName || 'CLIENTE VARIOS')}</span></div>
-                  <div className="flex"><span className="font-bold w-16 shrink-0">DNI:</span> <span>{lastSavedTransaction?.customerDocument || (customerDocument || '')}</span></div>
-                  <div className="flex"><span className="font-bold w-16 shrink-0">Fecha:</span> <span>{new Date().toLocaleDateString('es-PE')} {new Date().toLocaleTimeString('es-PE', {hour: '2-digit', minute:'2-digit'})}</span></div>
-                </div>
-                
-                <hr className="border-black border-t-2 mb-2" />
-
-                {/* Detalle */}
-                <div className="text-xs mb-2">
-                  <div className="font-bold mb-1">Detalle</div>
-                  <div className="border-b border-black border-dotted mb-1"></div>
-                  <div className="flex font-bold text-[10px] mb-1">
-                      <span className="w-8 text-center">Cant</span>
-                      <span className="w-8 text-center">U.M</span>
-                      <span className="w-12 text-right ml-auto">Precio</span>
-                      <span className="w-12 text-right">Total</span>
-                  </div>
-                  <div className="border-b border-black border-dotted mb-1"></div>
-
-                  {cartItems.map((item, i) => {
-                      const price = item.customPrice ?? item.product.price;
-                      const subtotal = price * item.quantity;
-                      return (
-                        <div key={i} className="mb-2 text-[11px]">
-                          <div className="uppercase font-medium">{item.product.name}</div>
-                          <div className="flex">
-                            <span className="w-8 text-center">{item.quantity}</span>
-                            <span className="w-8 text-center">NIU</span>
-                            <span className="w-12 text-right ml-auto">{price.toFixed(2)}</span>
-                            <span className="w-12 text-right">{subtotal.toFixed(2)}</span>
-                          </div>
-                        </div>
-                      );
-                  })}
-                </div>
-                
-                <hr className="border-black border-dotted mb-2" />
-
-                {/* Totals */}
-                <div className="text-right text-xs space-y-1 font-mono">
-                  <div className="flex justify-end">
-                    <span className="mr-8">Total Gravado (S/):</span>
-                    <span>{subtotalSinIGV.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-end">
-                      <span className="mr-8">IGV 18% (S/):</span>
-                      <span>{igv.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-end font-bold text-sm mt-1">
-                      <span className="mr-8">Total (S/):</span>
-                      <span>{total.toFixed(2)}</span>
-                  </div>
-                </div>
-                
-                <hr className="border-black border-t-2 my-2" />
-
-                {/* Amount in words */}
-                <div className="text-xs mb-2 uppercase">
-                  <span className="font-bold">SON: </span>
-                  {numberToText(total)}
-                </div>
-                
-                <div className="text-xs mb-4">
-                  <span className="font-bold">Cond. Venta: </span> <span className="uppercase">{paymentMethod}</span>
-                </div>
-
-                {/* QR */}
-                <div className="flex justify-center mb-2">
-                    <div className="border border-black p-1">
-                      <ScanBarcode className="w-20 h-20 text-black" />
-                    </div>
-                </div>
-                
-                <div className="text-center text-[9px] uppercase space-y-0.5">
-                  <p>Hash:</p>
-                  <p className="break-all font-mono text-[8px] mb-2">{sunatResult?.message || lastSavedTransaction?.sunatHash || 'PENDIENTE'}</p>
-                  <p>Representación Impresa de la</p>
-                  <p>{documentType === 'factura' ? 'FACTURA' : 'BOLETA'} DE VENTA ELECTRÓNICA</p>
-                  <p>Puede consultar en: www.apisunat.pe</p>
-                  <p>Autorizado con Resolución N°034-005-0012997/SUNAT</p>
-                  
-                  <p className="mt-4 italic normal-case">Generated by FerrePOS</p>
-                </div>
-              </div>
+            <div className="flex-1 overflow-auto border rounded-lg bg-white">
+              <ThermalReceipt
+                ref={printRef}
+                data={{
+                  title: documentType === 'factura' ? 'FACTURA DE VENTA ELECTRONICA' : 'BOLETA DE VENTA ELECTRONICA',
+                  serie: sunatResult?.serie || 'B001',
+                  number: (sunatResult?.numero || 0).toString().padStart(6, '0'),
+                  customerName: lastSavedTransaction?.customerName || customerName || 'CLIENTE VARIOS',
+                  customerDocument: lastSavedTransaction?.customerDocument || customerDocument || '',
+                  date: new Date(),
+                  items: cartItems.map(item => {
+                    const price = item.customPrice ?? item.product.price;
+                    return {
+                      name: item.product.name,
+                      quantity: item.quantity,
+                      price,
+                      total: price * item.quantity,
+                    };
+                  }),
+                  subtotal: subtotalSinIGV,
+                  igv,
+                  total,
+                  paymentMethod,
+                  sunatHash: sunatResult?.hash || '',
+                  isElectronic: true,
+                }}
+              />
             </div>
           )}
 

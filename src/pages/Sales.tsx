@@ -231,7 +231,7 @@ export default function Sales() {
     const igv = sale.total - subtotal;
     
     return {
-      title: sale.documentType === 'factura' ? 'FACTURA DE VENTA' : 'BOLETA DE VENTA',
+      title: sale.documentType === 'factura' ? 'FACTURA DE VENTA ELECTRONICA' : 'BOLETA DE VENTA ELECTRONICA',
       serie: sale.documentSerie || 'B001',
       number: (sale.documentNumber || 0).toString().padStart(6, '0'),
       customerName: sale.customerName,
