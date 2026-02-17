@@ -222,5 +222,20 @@ export function useSales() {
     onError: (err: any) => toast.error('Error al registrar venta', { description: err.message }),
   });
 
-  return { sales: sales || [], isLoading, createSale };
+  // Mutation to update sale SUNAT status (for voiding)
+  const updateSaleStatus = useMutation({
+    mutationFn: async ({ saleId, status }: { saleId: string; status: string }) => {
+      const { error } = await supabase
+        .from('sales')
+        .update({ sunat_estado: status })
+        .eq('id', saleId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+    },
+    onError: (err: Error) => toast.error('Error al actualizar estado', { description: err.message }),
+  });
+
+  return { sales: sales || [], isLoading, createSale, updateSaleStatus };
 }

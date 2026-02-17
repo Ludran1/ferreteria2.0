@@ -12,7 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Download, Eye, CreditCard, Banknote, Building2, FileText, Printer, Copy, Camera, Pencil } from 'lucide-react';
+import { Search, Download, Eye, CreditCard, Banknote, Building2, FileText, Printer, Copy, Camera, Pencil, Ban } from 'lucide-react';
+import { anularComprobante } from '@/lib/apiSunat';
 import html2canvas from 'html2canvas';
 import { cn } from '@/lib/utils';
 import { Sale, PrintableDocumentData, Quote } from '@/types';
@@ -24,6 +25,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { useNavigate } from 'react-router-dom';
 
@@ -65,7 +68,61 @@ export default function Sales() {
 
   // Data Fetching
   const { quotes, isLoading: loadingQuotes } = useQuotes();
-  const { sales, isLoading: loadingSales } = useSales();
+  const { sales, isLoading: loadingSales, updateSaleStatus } = useSales();
+
+  // Void states
+  const [saleToVoid, setSaleToVoid] = useState<Sale | null>(null);
+  const [isVoiding, setIsVoiding] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(15);
+
+  const handleVoidSale = async () => {
+    if (!saleToVoid || !saleToVoid.documentSerie || !saleToVoid.documentNumber) return;
+    
+    // Check 3-day window
+    const daysSinceEmission = Math.floor((Date.now() - new Date(saleToVoid.date).getTime()) / (1000 * 60 * 60 * 24));
+    if (daysSinceEmission > 3) {
+      toast({
+        title: 'Fuera de plazo',
+        description: 'Solo se pueden anular comprobantes emitidos hace máximo 3 días. Usa una Nota de Crédito.',
+        variant: 'destructive',
+      });
+      setSaleToVoid(null);
+      return;
+    }
+
+    setIsVoiding(true);
+    try {
+      const result = await anularComprobante({
+        documento: saleToVoid.documentType as 'boleta' | 'factura',
+        serie: saleToVoid.documentSerie,
+        numero: saleToVoid.documentNumber!,
+      });
+
+      if (result.success) {
+        await updateSaleStatus.mutateAsync({ saleId: saleToVoid.id, status: 'ANULADO' });
+        toast({
+          title: '✅ Comprobante Anulado',
+          description: `${saleToVoid.documentSerie}-${saleToVoid.documentNumber} fue anulado correctamente`,
+        });
+      } else {
+        toast({
+          title: 'Error al anular',
+          description: result.message,
+          variant: 'destructive',
+        });
+      }
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
+      toast({
+        title: 'Error',
+        description: errorMsg,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsVoiding(false);
+      setSaleToVoid(null);
+    }
+  };
 
   const allTransactions = [
     ...(sales || []).map(s => ({ ...s, type: 'sale' as const })),
@@ -80,6 +137,8 @@ export default function Sales() {
       (item.id || '').toLowerCase().includes(searchTerm.toLowerCase())
     )
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const displayedTransactions = filteredTransactions.slice(0, visibleCount);
 
   // Calculate Total Sales (Only 'sale' type counts towards money in)
   const totalSalesMonth = (sales || [])
@@ -362,7 +421,7 @@ export default function Sales() {
               </tr>
             </thead>
             <tbody>
-              {filteredTransactions.map((item, index) => {
+              {displayedTransactions.map((item, index) => {
                 // @ts-ignore - Simple check for payment method existence or default
                 const PaymentIcon = item.paymentMethod && item.paymentMethod !== 'pending' ? paymentIcons[item.paymentMethod] : null;
                 
@@ -396,6 +455,9 @@ export default function Sales() {
                                     : (item.invoiceNumber || item.id.slice(0,8)))
                                 : ((item as any).quoteNumber || item.id.slice(0,8))}
                         </span>
+                        {item.type === 'sale' && (item as Sale).sunatEstado === 'ANULADO' && (
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-100 text-red-700">ANULADO</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -460,6 +522,20 @@ export default function Sales() {
                         >
                           <Printer className="h-4 w-4" />
                         </Button>
+                        {item.type === 'sale' && (item as Sale).documentSerie && (item as Sale).sunatEstado !== 'ANULADO' && (() => {
+                          const daysSince = Math.floor((Date.now() - new Date(item.date).getTime()) / (1000 * 60 * 60 * 24));
+                          return daysSince <= 3;
+                        })() && (
+                          <Button
+                            variant="ghost" 
+                            size="sm"
+                            className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => setSaleToVoid(item as Sale)}
+                            title="Anular comprobante"
+                          >
+                            <Ban className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -467,6 +543,17 @@ export default function Sales() {
               })}
             </tbody>
           </table>
+          {filteredTransactions.length > visibleCount && (
+            <div className="flex justify-center py-4">
+              <Button
+                variant="outline"
+                onClick={() => setVisibleCount(prev => prev + 15)}
+                className="w-full max-w-xs"
+              >
+                Ver más ({filteredTransactions.length - visibleCount} restantes)
+              </Button>
+            </div>
+          )}
           {filteredTransactions.length === 0 && !loadingQuotes && !loadingSales && (
             <div className="mt-12 text-center pb-12">
               <FileText className="mx-auto h-12 w-12 text-muted-foreground/50" />
@@ -560,6 +647,30 @@ export default function Sales() {
                     </div>
                 </div>
             )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Void Confirmation Dialog */}
+      <Dialog open={!!saleToVoid} onOpenChange={(open) => !open && setSaleToVoid(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Ban className="h-5 w-5" /> Anular Comprobante
+            </DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro que deseas anular el comprobante{' '}
+              <strong>{saleToVoid?.documentSerie}-{saleToVoid?.documentNumber}</strong>?
+              Esta acción enviará una comunicación de baja a SUNAT y no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setSaleToVoid(null)} disabled={isVoiding}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleVoidSale} disabled={isVoiding}>
+              {isVoiding ? 'Anulando...' : 'Sí, Anular'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

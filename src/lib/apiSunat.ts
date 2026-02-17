@@ -278,3 +278,70 @@ export async function consultarRuc(ruc: string): Promise<RucResponse | null> {
     return null;
   }
 }
+
+// ── Anular Comprobante (Comunicación de Baja) ──────────────────────────
+export interface AnularRequest {
+  documento: 'boleta' | 'factura';
+  serie: string;
+  numero: number;
+  motivo?: string;
+}
+
+export interface AnularResponse {
+  success: boolean;
+  message: string;
+  payload?: {
+    estado: string;
+    hash: string;
+    ticket: string;
+    xml: string;
+    cdr: string;
+  };
+}
+
+export async function anularComprobante(params: AnularRequest): Promise<AnularResponse> {
+  // Facturas → Comunicación de Baja (/voided)
+  // Boletas → Resumen Diario (/daily-summary)
+  const isBoleta = params.documento === 'boleta';
+
+  const endpoint = APISUNAT_ENV === 'production'
+    ? `https://app.apisunat.pe/api/v3/${isBoleta ? 'daily-summary' : 'voided'}`
+    : `https://sandbox.apisunat.pe/api/v3/${isBoleta ? 'daily-summary' : 'voided'}`;
+
+  const requestBody = isBoleta
+    ? {
+        documento: 'resumen_diario',
+        documentos_afectados: [{
+          documento: 'boleta',
+          serie: params.serie,
+          numero: String(params.numero),
+          accion_resumen: 'anular',
+        }],
+      }
+    : {
+        documento: 'comunicacion_baja',
+        motivo: params.motivo || 'ANULACIÓN DE OPERACIÓN',
+        documento_afectado: {
+          documento: 'factura',
+          serie: params.serie,
+          numero: params.numero,
+        },
+      };
+
+  console.log('[SUNAT] Anulando comprobante:', JSON.stringify(requestBody, null, 2));
+  console.log('[SUNAT] Endpoint:', endpoint);
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${APISUNAT_TOKEN}`,
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  const data: AnularResponse = await response.json();
+  console.log('[SUNAT] Respuesta anulación:', JSON.stringify(data, null, 2));
+
+  return data;
+}
