@@ -33,6 +33,19 @@ export function useClients() {
 
   const createClient = useMutation({
     mutationFn: async (client: Omit<Client, 'id'>) => {
+      // 1. Check if client exists
+      if (client.documentId) {
+        const { data: existing } = await supabase
+            .from('clients')
+            .select('id')
+            .eq('document_id', client.documentId)
+            .maybeSingle(); // Use maybeSingle to avoid error if not found (returns null)
+
+        if (existing) {
+            throw new Error(`El cliente con documento ${client.documentId} ya existe.`);
+        }
+      }
+
       // Map Client camelCase to DB snake_case
       const dbClient = {
           name: client.name,
@@ -105,11 +118,38 @@ export function useClients() {
     },
   });
 
+  const deleteClient = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('clients')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      toast({ title: 'Cliente eliminado correctamente' });
+    },
+    onError: (error: any) => {
+      const msg = error.code === '23503' 
+        ? 'No se puede eliminar el cliente porque tiene ventas o pagos registrados.' 
+        : error.message;
+      
+      toast({ 
+        title: 'Error al eliminar', 
+        description: msg, 
+        variant: 'destructive' 
+      });
+    },
+  });
+
   return {
     clients: clientsQuery.data || [],
     isLoading: clientsQuery.isLoading,
     createClient,
     updateClient,
+    deleteClient,
   };
 }
 

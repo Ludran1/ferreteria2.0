@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, FileText, Plus, ArrowLeft, DollarSign } from 'lucide-react';
+import { Search, FileText, Plus, ArrowLeft, DollarSign, Trash2 } from 'lucide-react';
 import { Client } from '@/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -16,6 +16,16 @@ import {
     DialogTitle,
     DialogFooter,
 } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import {
     Select,
@@ -92,13 +102,15 @@ export default function Credits() {
 function ClientDetail({ client, onBack }: { client: Client, onBack: () => void }) {
     const { payments, addPayment } = useClientPayments(client.id);
     const { sales, isLoading: salesLoading } = useClientSales(client.id);
+    const { deleteClient } = useClients(); 
     const [paymentModalState, setPaymentModalState] = useState<{ open: boolean, saleId?: string, maxAmount?: number }>({
         open: false
     });
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     // Filter only credit sales for the "Cargos" section, or show all transactions?
     // User requested "Ventas a Crédito (Cargos)".
-    const creditSales = sales.filter(s => s.paymentType === 'credito');
+    const creditSales = (sales || []).filter(s => s.paymentType === 'credito');
 
     const handleSaleClick = (sale: any) => {
         setPaymentModalState({
@@ -135,8 +147,46 @@ function ClientDetail({ client, onBack }: { client: Client, onBack: () => void }
                         <Plus className="h-4 w-4 mr-2" />
                         Registrar Pago
                     </Button>
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="ml-2 text-destructive hover:bg-destructive/10"
+                        onClick={() => setShowDeleteConfirm(true)}
+                        title="Eliminar Cliente"
+                    >
+                        <Trash2 className="h-5 w-5" />
+                    </Button>
                 </div>
             </div>
+
+            <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Estás completamente seguro?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción eliminará al cliente <strong>{client.name}</strong> de forma permanente.
+                            <br /><br />
+                            Nota: No se pueden eliminar clientes que tengan ventas o historial de pagos registrados por seguridad de la información contable.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction 
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={() => {
+                                deleteClient.mutate(client.id, {
+                                    onSuccess: () => {
+                                        setShowDeleteConfirm(false);
+                                        onBack();
+                                    }
+                                });
+                            }}
+                        >
+                            Eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <div className="grid gap-6 md:grid-cols-2">
                  {/* SALES / CHARGES */}
