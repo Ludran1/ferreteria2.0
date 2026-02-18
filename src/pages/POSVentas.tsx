@@ -352,7 +352,7 @@ export default function POSVentas() {
 
     try {
       // 1. Determine serie and get next correlativo
-      const serie = documentType === 'boleta' ? 'B001' : 'F001';
+      const serie = documentType === 'boleta' ? 'B002' : 'F002';
       const numero = await getNextDocumentNumber(serie);
 
       // 2. Build SUNAT request
@@ -994,7 +994,7 @@ export default function POSVentas() {
             (() => {
               const receiptData = {
                 title: documentType === 'factura' ? 'FACTURA DE VENTA ELECTRONICA' : 'BOLETA DE VENTA ELECTRONICA',
-                serie: sunatResult?.serie || 'B001',
+                serie: sunatResult?.serie || 'B002',
                 number: (sunatResult?.numero || 0).toString().padStart(6, '0'),
                 customerName: lastSavedTransaction?.customerName || customerName || 'CLIENTE VARIOS',
                 customerDocument: lastSavedTransaction?.customerDocument || customerDocument || '',

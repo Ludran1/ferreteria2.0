@@ -317,7 +317,7 @@ function PaymentModal({
                         <Input 
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
-                            placeholder="Ej. Pago parcial de factura F001"
+                            placeholder="Ej. Pago parcial de factura F002"
                         />
                     </div>
                 </div>

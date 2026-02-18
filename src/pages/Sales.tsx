@@ -12,7 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Download, Eye, CreditCard, Banknote, Building2, FileText, Printer, Copy, Camera, Pencil, Ban } from 'lucide-react';
+import { Search, Download, Eye, CreditCard, Banknote, Building2, FileText, Printer, Copy, Camera, Pencil, Ban, Trash, Check, RefreshCw } from 'lucide-react';
+import { consultarComprobante } from "@/lib/apiSunat";
 import { anularComprobante } from '@/lib/apiSunat';
 import html2canvas from 'html2canvas';
 import { cn } from '@/lib/utils';
@@ -68,7 +69,9 @@ export default function Sales() {
 
   // Data Fetching
   const { quotes, isLoading: loadingQuotes } = useQuotes();
-  const { sales, isLoading: loadingSales, updateSaleStatus } = useSales();
+  const { sales, isLoading: loadingSales, updateSaleStatus } = useSales({
+    onError: (err: any) => toast.error('Error al actualizar estado', { description: err.message }),
+  });
 
   // Void states
   const [saleToVoid, setSaleToVoid] = useState<Sale | null>(null);
@@ -308,7 +311,7 @@ export default function Sales() {
     
     return {
       title: sale.documentType === 'factura' ? 'FACTURA DE VENTA ELECTRONICA' : 'BOLETA DE VENTA ELECTRONICA',
-      serie: sale.documentSerie || 'B001',
+      serie: sale.documentSerie || 'B002',
       number: (sale.documentNumber || 0).toString().padStart(6, '0'),
       customerName: sale.customerName,
       customerDocument: sale.customerDocument || '-',
@@ -551,6 +554,21 @@ export default function Sales() {
                             title="Anular comprobante"
                           >
                             <Ban className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {/* Verify Button for Error/Pending/Offline items */}
+                        {item.type === 'sale' && (item as Sale).documentSerie && (
+                          ['ERROR', 'PENDIENTE', 'EXCEPCION'].includes((item as Sale).sunatEstado || '') || 
+                          !(item as Sale).sunatEstado
+                        ) && (
+                          <Button
+                            variant="ghost" 
+                            size="sm"
+                            className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                            onClick={() => handleVerifyStatus(item as Sale)}
+                            title="Verificar en SUNAT"
+                          >
+                            <RefreshCw className="h-4 w-4" />
                           </Button>
                         )}
                       </div>

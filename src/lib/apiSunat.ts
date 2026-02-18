@@ -356,3 +356,56 @@ export async function anularComprobante(params: AnularRequest): Promise<AnularRe
 
   return data;
 }
+
+export interface StatusResponse {
+  success: boolean;
+  message: string;
+  payload?: {
+    estado?: string;
+    hash?: string;
+    xml?: string;
+    cdr?: string;
+    pdf?: string;
+  };
+}
+
+export async function consultarComprobante(
+  documento: string,
+  serie: string,
+  numero: number
+): Promise<StatusResponse> {
+  const endpoint = APISUNAT_ENV === 'production'
+    ? 'https://app.apisunat.pe/api/v3/status'
+    : 'https://sandbox.apisunat.pe/api/v3/status';
+
+  const requestBody = {
+    documento,
+    serie,
+    numero
+  };
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${APISUNAT_TOKEN}`,
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    const rawData = await response.json();
+    
+    return {
+      success: rawData.success === true,
+      message: rawData.message || (rawData.error ? JSON.stringify(rawData.error) : 'Respuesta sin mensaje'),
+      payload: rawData.payload || rawData.data
+    };
+  } catch (error: any) {
+    console.error('Error checking status:', error);
+    return {
+      success: false,
+      message: error.message || 'Error de conexión al consultar estado'
+    };
+  }
+}
