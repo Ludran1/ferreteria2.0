@@ -69,9 +69,7 @@ export default function Sales() {
 
   // Data Fetching
   const { quotes, isLoading: loadingQuotes } = useQuotes();
-  const { sales, isLoading: loadingSales, updateSaleStatus } = useSales({
-    onError: (err: any) => toast.error('Error al actualizar estado', { description: err.message }),
-  });
+  const { sales, isLoading: loadingSales, updateSaleStatus } = useSales();
 
   // Void states
   const [saleToVoid, setSaleToVoid] = useState<Sale | null>(null);
@@ -141,6 +139,44 @@ export default function Sales() {
     } finally {
       setIsVoiding(false);
       setSaleToVoid(null);
+    }
+  };
+
+  const handleVerifyStatus = async (item: Sale) => {
+    if (!item.documentSerie || !item.documentNumber || !item.documentType) return;
+    
+    try {
+      toast({ title: 'Consultando SUNAT...', description: 'Verificando estado del comprobante' });
+      
+      const response = await consultarComprobante(
+        item.documentType,
+        item.documentSerie,
+        item.documentNumber!
+      );
+
+      if (response.success) {
+        await updateSaleStatus.mutateAsync({ 
+          saleId: item.id, 
+          status: response.payload?.estado || 'ACEPTADO'
+        });
+        toast({
+          title: '✅ Estado actualizado',
+          description: `Comprobante ${item.documentSerie}-${item.documentNumber}: ${response.payload?.estado || 'ACEPTADO'}`,
+        });
+      } else {
+        toast({
+          title: 'No encontrado',
+          description: response.message || 'El comprobante no fue encontrado en SUNAT',
+          variant: 'destructive',
+        });
+      }
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : 'Error de conexión';
+      toast({
+        title: 'Error',
+        description: errorMsg,
+        variant: 'destructive',
+      });
     }
   };
 
@@ -436,6 +472,9 @@ export default function Sales() {
                   Total
                 </th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-foreground">
+                  Estado
+                </th>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-foreground">
                   Acciones
                 </th>
               </tr>
@@ -512,6 +551,23 @@ export default function Sales() {
                       <span className="font-bold text-foreground">
                         S/ {item.total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      {item.type === 'sale' && (item as Sale).documentSerie ? (
+                        <span className={cn(
+                          'text-[10px] font-bold uppercase px-2 py-1 rounded-full',
+                          (item as Sale).sunatEstado === 'ACEPTADO' && 'bg-emerald-100 text-emerald-700',
+                          (item as Sale).sunatEstado === 'ANULADO' && 'bg-red-100 text-red-700',
+                          (item as Sale).sunatEstado === 'PENDIENTE' && 'bg-yellow-100 text-yellow-700',
+                          (item as Sale).sunatEstado === 'RECHAZADO' && 'bg-red-100 text-red-700',
+                          (item as Sale).sunatEstado === 'EXCEPCION' && 'bg-orange-100 text-orange-700',
+                          !(item as Sale).sunatEstado && 'bg-gray-100 text-gray-500'
+                        )}>
+                          {(item as Sale).sunatEstado || 'SIN ESTADO'}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-1">
