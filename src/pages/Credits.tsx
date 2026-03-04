@@ -41,10 +41,22 @@ export default function Credits() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 16;
+
   const filteredClients = clients.filter(c => 
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     c.documentId?.includes(searchTerm)
   );
+
+  const totalPages = Math.ceil(filteredClients.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedClients = filteredClients.slice(startIndex, startIndex + itemsPerPage);
+
+  // Reset to first page on search
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   return (
     <MainLayout title="Créditos y Clientes" subtitle="Gestión de cuentas por cobrar">
@@ -65,8 +77,8 @@ export default function Credits() {
             {/* Add Client Button could go here */}
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredClients.map((client) => (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {paginatedClients.map((client) => (
               <Card 
                 key={client.id} 
                 className="cursor-pointer hover:shadow-md transition-shadow"
@@ -93,6 +105,31 @@ export default function Credits() {
                 </div>
             )}
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                Anterior
+              </Button>
+              <div className="text-sm text-muted-foreground">
+                Página {currentPage} de {totalPages}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Siguiente
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </MainLayout>
@@ -143,7 +180,7 @@ function ClientDetail({ client, onBack }: { client: Client, onBack: () => void }
                     </div>
                 </div>
                 <div className="ml-auto">
-                    <Button onClick={() => setShowPaymentModal(true)}>
+                    <Button onClick={handleGenericPayment}>
                         <Plus className="h-4 w-4 mr-2" />
                         Registrar Pago
                     </Button>

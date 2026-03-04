@@ -237,5 +237,26 @@ export function useSales() {
     onError: (err: Error) => toast.error('Error al actualizar estado', { description: err.message }),
   });
 
-  return { sales: sales || [], isLoading, createSale, updateSaleStatus };
+  // Mutation to update sale with SUNAT data after emission
+  const updateSaleSunatData = useMutation({
+    mutationFn: async ({ saleId, sunatData }: { saleId: string; sunatData: any }) => {
+      const { error } = await supabase
+        .from('sales')
+        .update({
+          sunat_estado: sunatData.estado,
+          sunat_hash: sunatData.hash,
+          document_number: sunatData.numero,
+          sunat_pdf_url: sunatData.pdfUrl,
+          sunat_xml_url: sunatData.xmlUrl,
+        })
+        .eq('id', saleId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+    },
+    onError: (err: Error) => toast.error('Error al sincronizar datos de SUNAT', { description: err.message }),
+  });
+
+  return { sales: sales || [], isLoading, createSale, updateSaleStatus, updateSaleSunatData };
 }

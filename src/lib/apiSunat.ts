@@ -153,11 +153,30 @@ export async function emitirComprobante(
 
     const data: SunatResponse = await response.json();
 
+    // Workaround for SUNAT API edge case: sometimes it returns success: false
+    // but the message confirms it was actually sent and accepted, and provides the payload.
+    if (!data.success && data.message?.includes('aceptado por SUNAT') && data.payload) {
+        console.log('[SUNAT] API returned success:false but message indicates success. Overriding to true.', data.message);
+        data.success = true;
+    }
+
+    if (!data.success) {
+      console.error(`[SUNAT ERROR attempt ${attempt + 1}]`, data);
+    }
+
     // If the number was already used, increment and retry
     if (!data.success && data.message?.includes('fue emitido anteriormente')) {
       console.warn(`Numero ${currentNumero} already used, trying ${currentNumero + 1}...`);
       currentNumero++;
       continue;
+    }
+
+    // If it's a 400 Bad Request but NOT a duplicate number error, we might just be failing hard.
+    // If it's the last attempt, or if it's a structural error (not a number conflict), we should probably break.
+    if (!data.success && !data.message?.includes('fue emitido anteriormente')) {
+         console.error('Fatal SUNAT API Error:', data.message);
+         // Don't auto-retry on syntax/validation errors, only on number conflicts.
+         return { ...data, finalNumero: currentNumero };
     }
 
     return { ...data, finalNumero: currentNumero };

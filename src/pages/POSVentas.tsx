@@ -55,7 +55,7 @@ import { Check, ChevronsUpDown, UserPlus } from "lucide-react"
 export default function POSVentas() {
   // Hooks Data
   const { products: availableProducts } = useProducts();
-  const { createSale } = useSales();
+  const { createSale, updateSaleSunatData } = useSales();
   const queryClient = useQueryClient();
 
   const handleSync = async () => {
@@ -232,6 +232,9 @@ export default function POSVentas() {
     minLength: 4,
   });
 
+  const [currentProductPage, setCurrentProductPage] = useState(1);
+  const productsPerPage = 16;
+
   const filteredProducts = availableProducts.filter(
     (product) =>
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -239,6 +242,15 @@ export default function POSVentas() {
       product.barcode?.includes(searchTerm) ||
       product.additionalBarcodes?.some(code => code.includes(searchTerm))
   );
+
+  const totalProductPages = Math.ceil(filteredProducts.length / productsPerPage);
+  const productStartIndex = (currentProductPage - 1) * productsPerPage;
+  const paginatedProducts = filteredProducts.slice(productStartIndex, productStartIndex + productsPerPage);
+
+  // Reset to first page on search
+  useEffect(() => {
+    setCurrentProductPage(1);
+  }, [searchTerm]);
 
   const addToCart = (product: Product, quantity: number = 1) => {
     setCartItems((prev) => {
@@ -355,7 +367,46 @@ export default function POSVentas() {
       const serie = documentType === 'boleta' ? 'B002' : 'F002';
       const numero = await getNextDocumentNumber(serie);
 
-      // 2. Build SUNAT request
+      // 2. Prepare local transaction data (PENDIENTE)
+      const transactionData = {
+        customerName: selectedClient ? selectedClient.name : (customerName || 'CLIENTE VARIOS'),
+        customerPhone: selectedClient ? (selectedClient.phone || '') : customerPhone,
+        customerEmail: selectedClient ? (selectedClient.email || '') : '',
+        items: cartItems,
+        date: new Date(),
+        total: total,
+        paymentMethod,
+        paymentType: 'contado' as const,
+        clientId: selectedClient ? selectedClient.id : undefined,
+        // SUNAT metadata
+        documentType,
+        documentSerie: serie,
+        documentNumber: numero,
+        sunatEstado: 'PENDIENTE',
+        sunatHash: null,
+        sunatPdfUrl: null,
+        sunatXmlUrl: null,
+        customerDocument: customerDocument || (documentType === 'boleta' ? '99999999' : ''),
+        customerAddress: customerAddress || '-',
+      };
+
+      // 3. Save sale locally FIRST
+      let savedSale;
+      try {
+        savedSale = await createSale.mutateAsync(transactionData as any);
+        setLastSavedTransaction(savedSale);
+      } catch (localError: any) {
+        console.error('Error saving local sale:', localError);
+        toast({
+          title: 'Error al Guardar Localmente',
+          description: localError.message || 'Corrige los datos antes de emitir a SUNAT',
+          variant: 'destructive',
+        });
+        setIsEmitting(false);
+        return; // HALT before sending to SUNAT!
+      }
+
+      // 4. Build SUNAT request
       const sunatRequest = buildDocumentRequest({
         documentType,
         serie,
@@ -373,53 +424,70 @@ export default function POSVentas() {
         total,
       });
 
-      // 3. Call SUNAT API
+      // 5. Call SUNAT API
       const sunatResponse = await emitirComprobante(sunatRequest);
 
-      // 4. Process result
+      // 6. Process result
       if (sunatResponse.success && sunatResponse.payload) {
         const estado = sunatResponse.payload.estado;
         const finalNumero = sunatResponse.finalNumero;
 
-        // 5. Save sale with SUNAT metadata
-        const transactionData = {
-          customerName: selectedClient ? selectedClient.name : customerName,
-          customerPhone: selectedClient ? (selectedClient.phone || '') : customerPhone,
-          customerEmail: selectedClient ? (selectedClient.email || '') : '',
-          items: cartItems,
-          date: new Date(),
-          total: total,
-          paymentMethod,
-          paymentType: 'contado' as const,
-          // SUNAT metadata
-          documentType,
-          documentSerie: serie,
-          documentNumber: finalNumero,
-          sunatEstado: estado,
-          sunatHash: sunatResponse.payload.hash,
-          sunatPdfUrl: sunatResponse.payload.pdf?.ticket || null,
-          sunatXmlUrl: sunatResponse.payload.xml || null,
-          customerDocument,
-          customerAddress,
-        };
+        // 7. Update local sale with SUNAT data
+        try {
+           await updateSaleSunatData.mutateAsync({
+             saleId: savedSale.id,
+             sunatData: {
+               estado,
+               hash: sunatResponse.payload.hash,
+               numero: finalNumero,
+               pdfUrl: sunatResponse.payload.pdf?.ticket || null,
+               xmlUrl: sunatResponse.payload.xml || null,
+             }
+           });
+        } catch (updateError: any) {
+           console.error('Failed to update sale with SUNAT data', updateError);
+           toast({
+             title: 'Advertencia',
+             description: 'Emitido en SUNAT pero falló sincronización local.',
+             variant: 'destructive',
+           });
+        }
 
-        const result = await createSale.mutateAsync(transactionData as any);
-        setLastSavedTransaction(result);
         setSunatResult({ estado, serie, numero: finalNumero, message: sunatResponse.message, hash: sunatResponse.payload.hash });
         setShowReceiptModal(true);
       } else {
-        // API returned error
+        // API returned error (success: false) and didn't throw an exception
+        // We update the local database to reflect this rejection explicitly
+        try {
+          await updateSaleSunatData.mutateAsync({
+             saleId: savedSale.id,
+             sunatData: {
+               estado: 'RECHAZADO',
+               hash: null,
+               numero: numero, // The numero we tried to use
+               pdfUrl: null,
+               xmlUrl: null,
+             }
+          });
+        } catch (e) {
+             console.error('Failed to update sale as RECHAZADO', e);
+        }
+
         toast({
           title: 'Error SUNAT',
-          description: sunatResponse.message || 'Error desconocido al emitir comprobante',
+          description: sunatResponse.message || 'Error desconocido al emitir comprobante. Revisa el historial.',
           variant: 'destructive',
         });
       }
     } catch (error: any) {
       console.error('Error emitting document:', error);
+      
+      // If the API call threw a hard network/timeout error, we can leave it as PENDIENTE 
+      // or optionally mark it as ERROR. It remains PENDIENTE by default from step 3.
+      
       toast({
-        title: 'Error',
-        description: error.message || 'Error al emitir comprobante',
+        title: 'Error Inesperado',
+        description: error.message || 'Ocurrió un error de conexión con SUNAT. La venta se guardó como PENDIENTE.',
         variant: 'destructive',
       });
     } finally {
@@ -649,12 +717,12 @@ export default function POSVentas() {
           )}
 
           {/* Products Grid - 4x4 compact */}
-          <div className="grid grid-cols-4 gap-2 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
-            {filteredProducts.map((product) => (
+          <div className="grid grid-cols-4 gap-2 overflow-y-auto pr-1 flex-1">
+            {paginatedProducts.map((product) => (
               <button
                 key={product.id}
                 onClick={() => addToCart(product)}
-                className="flex flex-col items-center gap-1 rounded-lg bg-card p-2 text-center shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]"
+                className="flex flex-col items-center gap-1 rounded-lg bg-card p-2 text-center shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] h-[110px]"
               >
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary">
                   <ShoppingCart className="h-4 w-4 text-muted-foreground" />
@@ -667,6 +735,31 @@ export default function POSVentas() {
               </button>
             ))}
           </div>
+
+          {/* Pagination Controls */}
+          {totalProductPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentProductPage((p) => Math.max(1, p - 1))}
+                disabled={currentProductPage === 1}
+              >
+                Anterior
+              </Button>
+              <div className="text-sm text-muted-foreground">
+                Página {currentProductPage} de {totalProductPages}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentProductPage((p) => Math.min(totalProductPages, p + 1))}
+                disabled={currentProductPage === totalProductPages}
+              >
+                Siguiente
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Cart Panel */}
