@@ -211,6 +211,22 @@ export function useSales() {
 
      if (itemsError) throw itemsError;
      
+     // 3. Deduct Stock for track_stock items
+     for (const item of sale.items) {
+       if (!item.product.id.startsWith('manual') && item.product.track_stock && item.product.stock !== undefined) {
+          const { error: stockError } = await supabase.rpc('decrement_product_stock', {
+            product_id: item.product.id,
+            qty_to_deduct: item.quantity
+          });
+          
+          if (stockError) {
+             console.error(`Error deducting stock for ${item.product.name}:`, stockError);
+             // We continue to avoid breaking the sale, normally this would be a single transaction
+             // Or alternatively rely on RLS/Triggers on DB side.
+          }
+       }
+     }
+
      return newSale;
     },
     onSuccess: () => {

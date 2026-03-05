@@ -50,6 +50,8 @@ export function useProducts() {
              category: updatedProduct.category,
              sku: updatedProduct.sku,
              barcode: updatedProduct.barcode,
+             track_stock: updatedProduct.track_stock,
+             stock: updatedProduct.stock
              // additionalBarcodes not yet in DB schema, ignored for now
         })
         .eq('id', updatedProduct.id)

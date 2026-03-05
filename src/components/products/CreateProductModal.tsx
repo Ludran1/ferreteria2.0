@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Plus, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Product } from '@/types';
@@ -41,7 +42,9 @@ export function CreateProductModal({ open, onOpenChange, onProductCreated, categ
     additionalBarcodes: [] as string[],
     category: '',
     price: '',
-    description: ''
+    description: '',
+    track_stock: false,
+    stock: '0',
   });
 
   const [newBarcode, setNewBarcode] = useState('');
@@ -57,7 +60,9 @@ export function CreateProductModal({ open, onOpenChange, onProductCreated, categ
             additionalBarcodes: productToEdit.additionalBarcodes || [],
             category: productToEdit.category,
             price: productToEdit.price.toString(),
-            description: productToEdit.description
+            description: productToEdit.description,
+            track_stock: productToEdit.track_stock || false,
+            stock: (productToEdit.stock || 0).toString(),
           });
       } else {
           setFormData({
@@ -67,7 +72,9 @@ export function CreateProductModal({ open, onOpenChange, onProductCreated, categ
             additionalBarcodes: [],
             category: '',
             price: '',
-            description: ''
+            description: '',
+            track_stock: false,
+            stock: '0',
           });
       }
       setNewBarcode('');
@@ -109,12 +116,19 @@ export function CreateProductModal({ open, onOpenChange, onProductCreated, categ
     try {
         if (productToEdit) {
             // Update
-            // @ts-ignore
-             if (props.onProductUpdated) await props.onProductUpdated({ ...productToEdit, ...formData, price: Number(formData.price) });
+             if (props.onProductUpdated) await props.onProductUpdated({ 
+                 ...productToEdit, 
+                 ...formData, 
+                 price: Number(formData.price),
+                 stock: Number(formData.stock)
+             });
         } else {
              // Create
-             // @ts-ignore
-             if (onProductCreated) await onProductCreated({ ...formData, price: Number(formData.price) });
+             if (onProductCreated) await onProductCreated({ 
+                 ...formData, 
+                 price: Number(formData.price),
+                 stock: Number(formData.stock)
+             });
         }
         
         onOpenChange(false);
@@ -259,6 +273,37 @@ export function CreateProductModal({ open, onOpenChange, onProductCreated, categ
               placeholder="Detalles del producto..."
             />
           </div>
+
+          <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm mt-2">
+            <div className="space-y-0.5">
+              <Label htmlFor="track_stock" className="text-base">Controlar Stock</Label>
+              <p className="text-[10px] text-muted-foreground">
+                Activa si la venta debe restar inventario automáticamente.
+              </p>
+            </div>
+            <Switch
+              id="track_stock"
+              checked={formData.track_stock}
+              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, track_stock: checked }))}
+            />
+          </div>
+          
+          {formData.track_stock && (
+            <div className="grid gap-2 fade-in zoom-in-95 duration-200">
+               <Label htmlFor="stock">
+                  {productToEdit ? "Stock Actual" : "Inventario Inicial"}
+               </Label>
+               <Input
+                  id="stock"
+                  name="stock"
+                  type="number"
+                  min="0"
+                  value={formData.stock}
+                  onChange={handleChange}
+                  placeholder="0"
+               />
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 mt-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

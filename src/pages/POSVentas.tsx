@@ -255,10 +255,22 @@ export default function POSVentas() {
   const addToCart = (product: Product, quantity: number = 1) => {
     setCartItems((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
+      
+      const newQuantity = existing ? existing.quantity + quantity : quantity;
+
+      if (product.track_stock && product.stock !== undefined && newQuantity > product.stock) {
+        toast({
+            title: "Stock Insuficiente",
+            description: `No puedes agregar más. Stock disponible: ${product.stock}`,
+            variant: "destructive"
+        });
+        return prev;
+      }
+
       if (existing) {
         return prev.map((item) =>
           item.product.id === product.id
-            ? { ...item, quantity: item.quantity + quantity }
+            ? { ...item, quantity: newQuantity }
             : item
         );
       }
@@ -267,15 +279,31 @@ export default function POSVentas() {
   };
 
   const updateQuantity = (productId: string, delta: number) => {
-    setCartItems((prev) =>
-      prev
-        .map((item) =>
-          item.product.id === productId
-            ? { ...item, quantity: Math.max(0, item.quantity + delta) }
-            : item
+    const product = availableProducts.find(p => p.id === productId);
+    
+    setCartItems((prev) => {
+      const item = prev.find((i) => i.product.id === productId);
+      if (!item) return prev;
+
+      const newQuantity = Math.max(0, item.quantity + delta);
+
+      if (product?.track_stock && product.stock !== undefined && newQuantity > product.stock) {
+        toast({
+            title: "Stock Insuficiente",
+            description: `El inventario máximo es de ${product.stock}.`,
+            variant: "destructive"
+        });
+        return prev;
+      }
+
+      return prev
+        .map((i) =>
+          i.product.id === productId
+            ? { ...i, quantity: newQuantity }
+            : i
         )
-        .filter((item) => item.quantity > 0)
-    );
+        .filter((i) => i.quantity > 0);
+    });
   };
 
   const setItemQuantity = (productId: string, quantity: number) => {
@@ -718,13 +746,27 @@ export default function POSVentas() {
 
           {/* Products Grid - 4x4 compact */}
           <div className="grid grid-cols-4 gap-2 overflow-y-auto pr-1 flex-1">
-            {paginatedProducts.map((product) => (
+            {paginatedProducts.map((product) => {
+              const outOfStock = product.track_stock && (product.stock ?? 0) <= 0;
+              return (
               <button
                 key={product.id}
-                onClick={() => addToCart(product)}
-                className="flex flex-col items-center gap-1 rounded-lg bg-card p-2 text-center shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] h-[110px]"
+                onClick={() => !outOfStock && addToCart(product)}
+                disabled={outOfStock}
+                className={cn(
+                  "flex flex-col items-center gap-1 rounded-lg border bg-card p-2 text-center shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] h-[110px] relative",
+                  outOfStock && "opacity-50 cursor-not-allowed grayscale"
+                )}
               >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary">
+                {product.track_stock && (
+                  <span className={cn(
+                    "absolute top-1 right-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full",
+                    outOfStock ? "bg-destructive/20 text-destructive" : "bg-primary/20 text-primary"
+                  )}>
+                    Stk: {product.stock}
+                  </span>
+                )}
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary mt-1">
                   <ShoppingCart className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <p className="text-xs font-medium text-foreground line-clamp-2 leading-tight w-full" title={product.name}>{product.name}</p>
@@ -733,7 +775,7 @@ export default function POSVentas() {
                   S/ {product.price.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
                 </p>
               </button>
-            ))}
+            )})}
           </div>
 
           {/* Pagination Controls */}

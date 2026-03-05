@@ -8,6 +8,8 @@ export interface Product {
   barcode?: string;
   additionalBarcodes?: string[];
   image?: string;
+  track_stock?: boolean;
+  stock?: number;
 }
 
 export interface QuoteItem {
