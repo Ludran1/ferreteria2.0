@@ -754,7 +754,7 @@ export default function POSVentas() {
                 onClick={() => !outOfStock && addToCart(product)}
                 disabled={outOfStock}
                 className={cn(
-                  "flex flex-col items-center gap-1 rounded-lg border bg-card p-2 text-center shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] h-[110px] relative",
+                  "flex flex-col items-center gap-1 rounded-lg border bg-card p-2 text-center shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] min-h-[120px] h-full relative justify-between",
                   outOfStock && "opacity-50 cursor-not-allowed grayscale"
                 )}
               >
@@ -766,12 +766,14 @@ export default function POSVentas() {
                     Stk: {product.stock}
                   </span>
                 )}
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary mt-1">
-                  <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+                <div className="flex flex-col items-center w-full">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary mt-1 mb-1">
+                    <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <p className="text-xs font-medium text-foreground line-clamp-3 leading-tight w-full" title={product.name}>{product.name}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{product.sku}</p>
                 </div>
-                <p className="text-xs font-medium text-foreground line-clamp-2 leading-tight w-full" title={product.name}>{product.name}</p>
-                <p className="text-[10px] text-muted-foreground">{product.sku}</p>
-                <p className="text-xs font-bold text-primary">
+                <p className="text-xs font-bold text-primary mt-1">
                   S/ {product.price.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
                 </p>
               </button>
