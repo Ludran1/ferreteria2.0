@@ -23,12 +23,12 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/co
 // IDs correspond to the valid sections in RBAC
 const menuItems = [
   { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { id: 'productos', icon: Package, label: 'Productos', path: '/productos' },
   { id: 'pos-ventas', icon: Receipt, label: 'POS Ventas', path: '/pos-ventas' },
   { id: 'cotizaciones', icon: FileText, label: 'Cotizaciones', path: '/cotizaciones' },
   { id: 'ventas', icon: History, label: 'Historial de Ventas', path: '/ventas' },
   { id: 'creditos', icon: Wallet, label: 'Créditos y Clientes', path: '/creditos' },
   { id: 'guias', icon: Truck, label: 'Guías de Remisión', path: '/guias' },
+  { id: 'productos', icon: Package, label: 'Productos', path: '/productos' },
   { id: 'configuracion', icon: Settings, label: 'Configuración', path: '/configuracion' },
 ];
 
