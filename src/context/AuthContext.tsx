@@ -19,23 +19,63 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let checkSessionTimeout: NodeJS.Timeout;
+
+    const setupSessionCheck = (currSession: Session | null) => {
+      if (currSession?.expires_at) {
+        // Calculate milliseconds until expiration
+        const expiresAtMs = currSession.expires_at * 1000;
+        const timeUntilExpiry = expiresAtMs - Date.now();
+        
+        // Clear any existing timeout
+        if (checkSessionTimeout) clearTimeout(checkSessionTimeout);
+
+        if (timeUntilExpiry > 0) {
+          // Set timeout to check the session exactly when it expires
+          checkSessionTimeout = setTimeout(async () => {
+             const { data: { session: freshSession } } = await supabase.auth.getSession();
+             // If no fresh session, or the expiration hasn't updated, sign out
+             if (!freshSession || freshSession.expires_at === currSession.expires_at) {
+                await supabase.auth.signOut();
+             }
+          }, timeUntilExpiry + 1000); // 1 second buffer
+        } else {
+          // Already expired
+          supabase.auth.signOut();
+        }
+      } else {
+         if (checkSessionTimeout) clearTimeout(checkSessionTimeout);
+      }
+    };
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+      setupSessionCheck(session);
     });
 
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
       setLoading(false);
+      setupSessionCheck(currentSession);
+      
+      // Explicitly handle token refresh failures if they emit SIGNED_OUT
+      if (_event === 'SIGNED_OUT') {
+         setSession(null);
+         setUser(null);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      if (checkSessionTimeout) clearTimeout(checkSessionTimeout);
+    };
   }, []);
 
   const signOut = async () => {

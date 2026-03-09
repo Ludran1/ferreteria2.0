@@ -340,20 +340,26 @@ export default function Sales() {
     }
   };
 
-  // Helper for thermal receipt data
   const getThermalReceiptData = (sale: Sale): ThermalReceiptData => {
     const subtotal = sale.total / 1.18;
     const igv = sale.total - subtotal;
+    const isQuote = (sale as any).type === 'quote';
     
+    // For quotes, the ID/number might come as 'COT-000146', we just want the number part
+    let quoteNum = ((sale as any).quoteNumber || sale.id.slice(0, 6)).toString();
+    if (isQuote && quoteNum.startsWith('COT-')) {
+        quoteNum = quoteNum.replace('COT-', '');
+    }
+
     return {
-      title: sale.documentType === 'factura' ? 'FACTURA DE VENTA ELECTRONICA' : 'BOLETA DE VENTA ELECTRONICA',
-      serie: sale.documentSerie || 'B002',
-      number: (sale.documentNumber || 0).toString().padStart(6, '0'),
+      title: isQuote ? 'COTIZACIÓN' : (sale.documentType === 'factura' ? 'FACTURA DE VENTA ELECTRONICA' : 'BOLETA DE VENTA ELECTRONICA'),
+      serie: isQuote ? 'COT' : (sale.documentSerie || 'B002'),
+      number: isQuote ? quoteNum.padStart(6, '0') : (sale.documentNumber || 0).toString().padStart(6, '0'),
       customerName: sale.customerName,
       customerDocument: sale.customerDocument || '-',
       date: new Date(sale.date),
       items: sale.items.map(item => {
-        const price = item.price_at_sale ?? item.customPrice ?? item.product.price;
+        const price = item.price_at_sale ?? (item as any).customPrice ?? item.product.price;
         return {
           name: item.product.name,
           quantity: item.quantity,
@@ -364,9 +370,9 @@ export default function Sales() {
       subtotal: subtotal,
       igv: igv,
       total: sale.total,
-      paymentMethod: sale.paymentMethod,
+      paymentMethod: isQuote ? 'Pendiente' : sale.paymentMethod,
       sunatHash: sale.sunatHash,
-      isElectronic: true
+      isElectronic: !isQuote
     };
   };
 
