@@ -11,7 +11,7 @@ export const businessInfo: BusinessInfo = {
 
 export const printTerms = {
   quote: {
-    validity: '15 días',
+    validity: '1 día',
     paymentTerms: [
       '50% anticipo, 50% contra entrega',
       'Efectivo, tarjeta o transferencia',

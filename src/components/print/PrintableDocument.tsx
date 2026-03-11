@@ -1,9 +1,10 @@
-import { forwardRef } from 'react';
+import React, { forwardRef } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { PrintableDocumentData } from '@/types';
 import { BusinessSettings } from '@/hooks/useBusinessSettings';
 import { businessInfo as defaultInfo, printTerms } from '@/config/businessInfo';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface PrintableDocumentProps {
   data: PrintableDocumentData;
@@ -21,118 +22,169 @@ const paymentMethodLabels = {
 export const PrintableDocument = forwardRef<HTMLDivElement, PrintableDocumentProps>(
   ({ data, settings }, ref) => {
     const isQuote = data.type === 'quote';
+    const isFactura = data.documentNumber?.startsWith('F');
     const terms = isQuote ? printTerms.quote : printTerms.sale;
     
     // Use passed settings or fallback to default
     const info = settings || defaultInfo;
+    
+    // Extract numbers from total to convert to words
+    const totalSolesFloor = Math.floor(data.total);
+    const centsStr = Math.round((data.total % 1) * 100).toString().padStart(2, '0');
 
     return (
       <div
         ref={ref}
-        className="print-document bg-white text-black p-2 mx-auto"
+        className="print-document"
         style={{ 
-          width: '80mm',
-          fontFamily: "'Courier New', Courier, monospace",
-          fontSize: '12px',
-          lineHeight: '1.2'
+          width: '300px', 
+          padding: '15px', 
+          fontFamily: "'Courier New', Courier, monospace", 
+          fontSize: '11px', 
+          color: 'black', 
+          background: 'white', 
+          lineHeight: '1.3', 
+          margin: '0 auto', 
+          boxSizing: 'border-box' 
         }}
       >
-        {/* Header */}
-        <div className="text-center border-b border-black pb-2 mb-2">
-          <h1 className="text-base font-bold uppercase">{info.name}</h1>
-          <p className="text-[10px] mt-1">{info.address}</p>
-          <p className="text-[10px]">Tel: {info.phone}</p>
-          
-          <div className="mt-2">
-            <p className="font-bold">
-              {data.type === 'quote' && 'COTIZACIÓN'}
-              {data.type === 'sale' && 'TICKET DE VENTA'}
-              {data.type === 'remission' && 'GUÍA DE REMISIÓN'}
-            </p>
-            <p>#{data.documentNumber}</p>
-            <p className="text-[10px]">
-              {format(data.date, "dd/MM/yyyy HH:mm", { locale: es })}
-            </p>
+        <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+          <h2 style={{ margin: '0', fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase' }}>
+             {(info as any)?.name || (info as any)?.businessName || 'MI EMPRESA'}
+          </h2>
+          <p style={{ margin: '2px 0 0 0' }}>RUC: {(info as any)?.ruc || (info as any)?.document_number || '10000000000'}</p>
+          <p style={{ margin: '2px 0 0 0' }}>{info?.address || 'Dirección'}</p>
+          <p style={{ margin: '2px 0 0 0' }}>Telf: {info?.phone || '000000000'}</p>
+        </div>
+        
+        <div style={{ textAlign: 'center', borderTop: '1px dashed black', borderBottom: '1px dashed black', padding: '6px 0', marginBottom: '8px' }}>
+          <div style={{ fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase' }}>
+             {data.type === 'quote' ? 'COTIZACIÓN' : data.type === 'remission' ? 'GUÍA DE REMISIÓN' : isFactura ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA'}
+          </div>
+          <div style={{ fontWeight: 'bold', fontSize: '15px', marginTop: '2px' }}>
+             {data.type === 'quote' && !data.documentNumber.includes('COT-') ? `COT-${data.documentNumber.padStart(6,'0')}` : data.documentNumber}
           </div>
         </div>
 
-        {/* Customer Info */}
-        <div className="border-b border-black pb-2 mb-2 text-[10px]">
-          <p><span className="font-semibold">Cliente:</span> {data.customerName}</p>
-          {data.customerPhone && (
-            <p><span className="font-semibold">Tel:</span> {data.customerPhone}</p>
-          )}
-          {data.address && (
-            <p><span className="font-semibold">Dirección:</span> {data.address}</p>
-          )}
+        <div style={{ marginBottom: '8px' }}>
+          <table style={{ width: '100%', fontSize: '11px', textAlign: 'left' }}>
+            <tbody>
+              <tr>
+                <td style={{ fontWeight: 'bold', width: '65px', verticalAlign: 'top' }}>CLIENTE:</td>
+                <td style={{ textTransform: 'uppercase' }}>{data.customerName || 'CLIENTE VARIOS'}</td>
+              </tr>
+              {data.type !== 'quote' && data.type !== 'remission' && (
+              <tr>
+                <td style={{ fontWeight: 'bold' }}>DOC:</td>
+                <td>{data.customerPhone || '99999999'}</td> {/* Actually it should be customer document if we had it. Keeping phone for now as it was mapped this way before or maybe missing */}
+              </tr>
+              )}
+              <tr>
+                <td style={{ fontWeight: 'bold' }}>FECHA:</td>
+                <td>{format(new Date(data.date), 'dd/MM/yyyy hh:mm a')}</td>
+              </tr>
+              {data.type === 'remission' && data.address && (
+              <tr>
+                <td style={{ fontWeight: 'bold', verticalAlign: 'top' }}>DESTINO:</td>
+                <td style={{ textTransform: 'uppercase' }}>{data.address}</td>
+              </tr>
+              )}
+            </tbody>
+          </table>
         </div>
 
-        {/* Products */}
-        <div className="mb-2">
-          {/* Header Row */}
-          <div className="grid grid-cols-12 border-b border-dashed border-black pb-1 mb-1 font-bold text-[10px]">
-            <span className={data.type === 'remission' ? "col-span-10 text-left" : "col-span-6 text-left"}>Desc</span>
-            <span className="col-span-2 text-center">Cant</span>
-            {data.type !== 'remission' && <span className="col-span-4 text-right">Total</span>}
-          </div>
-          
-          {/* Data Rows */}
-          {data.items.map((item, index) => {
-            const unitPrice = item.customPrice ?? item.product.price;
-            const lineTotal = unitPrice * item.quantity;
-            return (
-              <div key={index} className="mb-1 text-[10px] border-b border-gray-100 pb-1">
-                {/* Product Name on its own line for readability */}
-                <div className="font-medium mb-0.5">{item.product.name}</div>
-                
-                {/* Quantity - Unit Price - Total */}
-                <div className="grid grid-cols-12 items-end">
-                   {/* Description/Spacing filler if needed, or just putting qty/price below */}
-                  <div className={data.type === 'remission' ? "col-span-10 flex items-center justify-end pr-8" : "col-span-8 flex items-center gap-1 text-gray-600 pl-2"}>
-                     {data.type === 'remission' ? (
-                        <span className="font-bold">{item.quantity}</span>
-                     ) : (
-                        <>
-                            <span>{item.quantity}</span>
-                            <span className="text-[9px]">x</span>
-                            <span>S/ {unitPrice.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>
-                        </>
-                     )}
-                  </div>
-                  
-                  {data.type !== 'remission' && (
-                    <div className="col-span-4 text-right font-medium">
-                        S/ {lineTotal.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
-                    </div>
-                  )}
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '8px' }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left', borderBottom: '1px dashed black', paddingBottom: '3px', borderTop: '1px dashed black', paddingTop: '3px', width: '15%' }}>Cant</th>
+              <th style={{ textAlign: 'left', borderBottom: '1px dashed black', paddingBottom: '3px', borderTop: '1px dashed black', paddingTop: '3px', width: '45%' }}>Desc</th>
+              {data.type !== 'remission' && (
+                  <>
+                    <th style={{ textAlign: 'right', borderBottom: '1px dashed black', paddingBottom: '3px', borderTop: '1px dashed black', paddingTop: '3px', width: '20%' }}>P.U</th>
+                    <th style={{ textAlign: 'right', borderBottom: '1px dashed black', paddingBottom: '3px', borderTop: '1px dashed black', paddingTop: '3px', width: '20%' }}>Total</th>
+                  </>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {data.items.map((item, index) => {
+                const unitPrice = item.customPrice ?? item.product.price;
+                const lineTotal = unitPrice * item.quantity;
+                return (
+                  <React.Fragment key={index}>
+                      <tr>
+                        <td colSpan={data.type === 'remission' ? 2 : 4} style={{ paddingTop: '4px', textTransform: 'uppercase' }}>{item.product.name}</td>
+                      </tr>
+                      <tr>
+                        <td style={{ paddingBottom: '4px', paddingLeft: '5px' }}>{item.quantity}</td>
+                        <td style={{ paddingBottom: '4px' }}></td>
+                        {data.type !== 'remission' && (
+                            <>
+                                <td style={{ textAlign: 'right', paddingBottom: '4px' }}>{unitPrice.toFixed(2)}</td>
+                                <td style={{ textAlign: 'right', paddingBottom: '4px' }}>{lineTotal.toFixed(2)}</td>
+                            </>
+                        )}
+                      </tr>
+                  </React.Fragment>
+                );
+            })}
+          </tbody>
+        </table>
+
+        {data.type !== 'remission' && (
+            <>
+              <div style={{ borderTop: '1px dashed black', paddingTop: '6px', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>OP. GRAVADA:</span>
+                  <span>S/ {(data.total / 1.18).toFixed(2)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>IGV (18%):</span>
+                  <span>S/ {(data.total - (data.total / 1.18)).toFixed(2)}</span>
                 </div>
               </div>
-            );
-          })}
-        </div>
 
-        {/* Totals - Hide for Remission */}
-        {data.type !== 'remission' && (
-            <div className="border-t border-black pt-2 mb-4 text-[11px]">
-            <div className="flex justify-between font-bold text-sm mt-1">
-                <span>TOTAL:</span>
-                <span>S/ {data.total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>
-            </div>
-            {data.paymentMethod && (
-                <div className="mt-1 text-center text-[10px]">
-                Pago: {paymentMethodLabels[data.paymentMethod]} {data.paymentType ? `(${data.paymentType})` : ''}
-                </div>
-            )}
-            </div>
+              <div style={{ borderTop: '2px solid black', borderBottom: '2px solid black', padding: '6px 0', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px' }}>
+                <span style={{ textTransform: 'uppercase' }}>TOTAL:</span>
+                <span>S/ {data.total.toFixed(2)}</span>
+              </div>
+
+              <div style={{ marginBottom: '10px' }}>
+                <p style={{ margin: '2px 0' }}>
+                    <span style={{ fontWeight: 'bold' }}>SON:</span> SON {totalSolesFloor} CON {centsStr}/100 SOLES
+                </p>
+                <p style={{ margin: '2px 0' }}>
+                    <span style={{ fontWeight: 'bold' }}>Cond. Venta:</span> {(data.paymentMethod ? paymentMethodLabels[data.paymentMethod] : 'EFECTIVO').toUpperCase()}
+                </p>
+              </div>
+
+              {data.type !== 'quote' && (
+              <div style={{ textAlign: 'center', margin: '15px 0', display: 'flex', justifyContent: 'center' }}>
+                 <QRCodeSVG 
+                    value={`${(info as any)?.ruc || '10000000000'}|${isFactura ? '01' : '03'}|${data.documentNumber.split('-')[0] || 'B002'}|${data.documentNumber.split('-')[1] || data.documentNumber}|${(data.total - (data.total / 1.18)).toFixed(2)}|${data.total.toFixed(2)}|${format(new Date(data.date), 'dd/MM/yyyy')}|1|${data.customerPhone || '00000000'}`} 
+                    size={120} 
+                 />
+              </div>
+              )}
+            </>
         )}
 
-        {/* Footer / Terms */}
-        <div className="text-center text-[9px] border-t border-dashed border-black pt-2">
-          {isQuote ? (
-             <p>Válido por {(terms as any).validity}</p>
-          ) : (
-             <p>Gracias por su compra</p>
-          )}
+        <div style={{ textAlign: 'center', fontSize: '9px', fontWeight: 'bold', marginTop: data.type === 'remission' ? '20px' : '0' }}>
+            <p style={{ margin: '2px 0' }}>
+                {isQuote ? `Válido por ${(terms as any).validity}` : 'REPRESENTACIÓN IMPRESA DE LA'}
+            </p>
+            {!isQuote && (
+                <p style={{ margin: '2px 0' }}>
+                    {data.type === 'remission' ? 'GUÍA DE REMISIÓN' : isFactura ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA'}
+                </p>
+            )}
+            {data.type !== 'quote' && (
+                <>
+                  <p style={{ margin: '2px 0', fontSize: '8px' }}>AUTORIZADO CON RESOLUCIÓN N°034-005-0012997/SUNAT</p>
+                  <p style={{ margin: '2px 0' }}>CONSULTE EN: WWW.APISUNAT.PE</p>
+                </>
+            )}
+            <p style={{ margin: '6px 0 0 0', fontStyle: 'italic', fontWeight: 'normal' }}>Software: FerrePOS v1.0</p>
         </div>
       </div>
     );

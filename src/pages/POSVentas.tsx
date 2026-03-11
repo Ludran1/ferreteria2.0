@@ -91,6 +91,27 @@ export default function POSVentas() {
   
   const { toast } = useToast();
 
+  // Check for POS Draft on Mount
+  useEffect(() => {
+    const draft = localStorage.getItem('posDraft');
+    if (draft) {
+      try {
+        const data = JSON.parse(draft);
+        setCustomerName(data.customerName || '');
+        setCartItems(data.items || []);
+        
+        toast({
+            title: "Datos Cargados",
+            description: "Se han cargado los datos de la cotización.",
+        });
+        
+        localStorage.removeItem('posDraft');
+      } catch (e) {
+        console.error("Error loading draft", e);
+      }
+    }
+  }, []);
+
   // Auto-lookup DNI/RUC
   useEffect(() => {
     const fetchClientData = async () => {

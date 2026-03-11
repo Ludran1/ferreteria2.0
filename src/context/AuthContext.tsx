@@ -31,14 +31,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (checkSessionTimeout) clearTimeout(checkSessionTimeout);
 
         if (timeUntilExpiry > 0) {
-          // Set timeout to check the session exactly when it expires
+          // Set timeout to proactively REFRESH the session 5 minutes before it expires
+          // 5 mins = 300000 ms. If the token lives less than 5 mins total, just refresh halfway through.
+          const refreshBuffer = timeUntilExpiry > 300000 ? 300000 : Math.floor(timeUntilExpiry / 2);
+          const timeUntilRefresh = timeUntilExpiry - refreshBuffer;
+
           checkSessionTimeout = setTimeout(async () => {
-             const { data: { session: freshSession } } = await supabase.auth.getSession();
-             // If no fresh session, or the expiration hasn't updated, sign out
-             if (!freshSession || freshSession.expires_at === currSession.expires_at) {
-                await supabase.auth.signOut();
+             console.log("Proactively refreshing Supabase session...");
+             // This call to getSession() actually forces the supabase client to refresh the token 
+             // in the background if it determines it's close to expiry, extending the life.
+             const { data: { session: freshSession }, error } = await supabase.auth.getSession();
+             
+             if (error || !freshSession) {
+                 console.error("Failed to automatically refresh session, logging out.", error);
+                 await supabase.auth.signOut();
+             } else if (freshSession.expires_at === currSession.expires_at) {
+                 // If the expiration time didn't change at all, the refresh might have failed silently
+                 // Check if we are really expired right now
+                 if ((freshSession.expires_at * 1000) <= Date.now()) {
+                    await supabase.auth.signOut();
+                 }
              }
-          }, timeUntilExpiry + 1000); // 1 second buffer
+          }, timeUntilRefresh);
         } else {
           // Already expired
           supabase.auth.signOut();

@@ -1,10 +1,12 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Product, QuoteItem, PrintableDocumentData } from '@/types';
-import { Plus, Search, Minus, Trash2, FileText, ShoppingCart, ScanBarcode, Edit2, Printer, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, Minus, Trash2, FileText, ShoppingCart, ScanBarcode, Edit2, Printer, ChevronLeft, ChevronRight, Camera, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import html2canvas from 'html2canvas';
+
 import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
@@ -53,8 +55,11 @@ export default function Quotes() {
   const [currentPage, setCurrentPage] = useState(1);
   const PRODUCTS_PER_PAGE = 16; // 4x4 grid
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [lastSavedQuote, setLastSavedQuote] = useState<any>(null);
   
+  const receiptRef = useRef<HTMLDivElement>(null);
+
   const { toast } = useToast();
   const { printRef, handlePrint } = usePrint();
   const { settings } = useBusinessSettings();
@@ -244,15 +249,7 @@ export default function Quotes() {
     0
   );
 
-  const handleSaveAndPrint = async () => {
-    if (!customerName.trim() && !selectedClient) {
-      toast({
-        title: 'Error',
-        description: 'Ingresa el nombre del cliente',
-        variant: 'destructive',
-      });
-      return;
-    }
+  const handleSave = async () => {
     if (cartItems.length === 0) {
       toast({
         title: 'Error',
@@ -262,8 +259,12 @@ export default function Quotes() {
       return;
     }
 
+    const finalCustomerName = selectedClient 
+        ? selectedClient.name 
+        : (customerName.trim() || 'Cliente en Tienda');
+
     const quoteData = {
-        customerName: selectedClient ? selectedClient.name : customerName,
+        customerName: finalCustomerName,
         customerPhone: selectedClient ? (selectedClient.phone || '') : customerPhone,
         customerEmail: selectedClient ? (selectedClient.email || '') : '',
         items: cartItems,
@@ -275,22 +276,81 @@ export default function Quotes() {
     try {
         const result = await createQuote.mutateAsync(quoteData);
         setLastSavedQuote(result);
-
-        // Show print preview
-        setShowPrintPreview(true);
-        setTimeout(() => {
-            handlePrint();
-            setShowPrintPreview(false);
-            setLastSavedQuote(null);
-            
-            setCartItems([]);
-            setCustomerName('');
-            setCustomerPhone('');
-            setSelectedClient(null);
-        }, 100);
-
+        setShowReceiptModal(true);
+        
+        // Don't reset cart here yet, so they can see the receipt.
+        // We'll reset it when they close the modal.
     } catch (error) {
         console.error(error);
+    }
+  };
+
+  const handleCloseReceiptAndReset = () => {
+      setShowReceiptModal(false);
+      setLastSavedQuote(null);
+      setCartItems([]);
+      setCustomerName('');
+      setCustomerPhone('');
+      setSelectedClient(null);
+  };
+
+  const handleCaptureImage = async () => {
+    if (!receiptRef.current) return;
+
+    try {
+      const canvas = await html2canvas(receiptRef.current, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        onclone: (clonedDoc) => {
+            const container = clonedDoc.getElementById('quote-receipt-container');
+            if (container) {
+                container.style.maxHeight = 'none';
+                container.style.overflow = 'visible';
+            }
+        } 
+      });
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+            toast({
+                title: "Error",
+                description: "No se pudo generar la imagen",
+                variant: "destructive"
+            });
+            return;
+        }
+        
+        try {
+            await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': blob })
+            ]);
+            toast({
+                title: "Imagen copiada",
+                description: "La cotización se ha copiado al portapapeles",
+            });
+        } catch (err) {
+            console.error("Clipboard write failed:", err);
+            // Fallback to download if clipboard fails
+             const image = canvas.toDataURL('image/png');
+             const link = document.createElement('a');
+             link.href = image;
+             link.download = `cotizacion-${lastSavedQuote?.quote_number || 'pendiente'}.png`;
+             link.click();
+             
+             toast({
+                title: "Imagen descargada",
+                description: "No se pudo copiar al portapapeles, se descargó la imagen.",
+            });
+        }
+      }, 'image/png');
+
+    } catch (error) {
+      console.error("Error capturing image:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo generar la imagen",
+        variant: "destructive"
+      });
     }
   };
 
@@ -321,7 +381,7 @@ export default function Quotes() {
         type: 'quote',
         documentNumber: docNumber,
         date: new Date(),
-        customerName,
+        customerName: lastSavedQuote?.customer_name || (customerName.trim() || 'Cliente en Tienda'),
         customerPhone: customerPhone || undefined,
         items: cartItems,
         subtotal: total,
@@ -758,8 +818,8 @@ export default function Quotes() {
 
             {/* Actions */}
             <div className="mt-6">
-              <Button className="w-full gap-2" size="lg" onClick={handleSaveAndPrint}>
-                <Printer className="h-4 w-4" />
+              <Button className="w-full gap-2" size="lg" onClick={handleSave}>
+                <FileText className="h-4 w-4" />
                 Guardar Cotización
               </Button>
             </div>
@@ -767,8 +827,80 @@ export default function Quotes() {
         </div>
       </div>
 
+      {/* View Receipt Modal */}
+      <Dialog open={showReceiptModal} onOpenChange={(open) => {
+          if (!open) handleCloseReceiptAndReset();
+      }}>
+        <DialogContent className="max-w-md">
+            <DialogHeader>
+                <DialogTitle>Cotización Guardada Exitosamente</DialogTitle>
+            </DialogHeader>
+            {lastSavedQuote && (
+                <div className="space-y-4">
+                    <div ref={receiptRef} className="space-y-4 p-2 bg-white rounded-lg">
+                        <div className="flex justify-between border-b pb-2">
+                            <div>
+                                <p className="font-bold text-lg text-black">
+                                    {lastSavedQuote.quote_number}
+                                </p>
+                                <p className="text-sm text-muted-foreground">{new Date().toLocaleString('es-PE', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+                            </div>
+                            <div className="text-right">
+                                <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold uppercase">Cotización</span>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <p className="text-sm font-medium text-muted-foreground">Cliente</p>
+                            <p className="text-base text-black">{lastSavedQuote.customer_name}</p>
+                        </div>
+
+                        <div id="quote-receipt-container" className="border rounded-lg p-3 bg-secondary/20 max-h-[300px] overflow-y-auto">
+                            <p className="text-sm font-medium text-muted-foreground mb-2">Productos</p>
+                            <ul className="space-y-2 text-sm">
+                                {cartItems.map((item, i) => {
+                                    const unitPrice = getItemPrice(item);
+                                    return (
+                                        <li key={i} className="flex justify-between text-black">
+                                            <div>
+                                                <span>{item.quantity}x {item.product.name}</span>
+                                                <span className="text-muted-foreground ml-2">(S/ {unitPrice.toFixed(2)} c/u)</span>
+                                            </div>
+                                            <span className="font-medium">S/ {(item.quantity * unitPrice).toFixed(2)}</span>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </div>
+
+                        <div className="flex justify-between items-center pt-2 border-t text-black">
+                            <p className="font-bold text-lg">Total</p>
+                            <p className="font-bold text-xl text-primary">S/ {total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</p>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                        <Button className="w-full gap-2" onClick={() => {
+                            handlePrint();
+                            // Optional: close after print? 
+                            // handleCloseReceiptAndReset();
+                        }}>
+                            <Printer className="h-4 w-4" /> Imprimir
+                        </Button>
+                        <Button variant="outline" className="w-full gap-2 border-primary text-primary hover:bg-primary hover:text-white transition-colors" onClick={() => window.alert("Página específica de Cotización PDF se actualizará pronto. Usa Imprimir > Guardar como PDF")}>
+                            <Download className="h-4 w-4" /> Descargar
+                        </Button>
+                        <Button variant="outline" className="w-full gap-2 border-primary text-primary hover:bg-primary hover:text-white transition-colors" onClick={handleCaptureImage}>
+                            <Camera className="h-4 w-4" /> Capturar
+                        </Button>
+                    </div>
+                </div>
+            )}
+        </DialogContent>
+      </Dialog>
+
       {/* Hidden Print Component */}
-      {showPrintPreview && (
+      {(showPrintPreview || showReceiptModal) && (
         <div className="fixed left-[-9999px] top-0">
           <PrintableDocument ref={printRef} data={getPrintData()} settings={settings} />
         </div>

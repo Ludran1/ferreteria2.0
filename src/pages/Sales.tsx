@@ -16,6 +16,10 @@ import { Search, Download, Eye, CreditCard, Banknote, Building2, FileText, Print
 import { consultarComprobante } from "@/lib/apiSunat";
 import { anularComprobante } from '@/lib/apiSunat';
 import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { QRCodeSVG } from 'qrcode.react';
+import React from 'react';
 import { cn } from '@/lib/utils';
 import { Sale, PrintableDocumentData, Quote } from '@/types';
 import { usePrint } from '@/hooks/usePrint';
@@ -272,11 +276,11 @@ export default function Sales() {
     };
 
     localStorage.setItem('posDraft', JSON.stringify(draftData));
-    navigate('/cotizaciones');
+    navigate('/pos-ventas');
 
     toast({
       title: "Cargando en POS",
-      description: "Redirigiendo para editar...",
+      description: "Redirigiendo para emitir comprobante...",
     });
   };
 
@@ -335,6 +339,174 @@ export default function Sales() {
       toast({
         title: "Error",
         description: "No se pudo generar la imagen",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!viewSale) return;
+
+    try {
+      toast({ title: 'Generando PDF', description: 'Por favor, espere...', duration: 2000 });
+      
+      // We need to render the thermal receipt temporarily to capture it
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.top = '0';
+      tempContainer.style.width = '300px';
+      tempContainer.style.backgroundColor = 'white';
+      document.body.appendChild(tempContainer);
+
+      const htmlString = `
+        <div style="width: 300px; padding: 15px; font-family: 'Courier New', Courier, monospace; font-size: 11px; color: black; background: white; line-height: 1.3; margin: 0 auto; box-sizing: border-box;">
+          <div style="text-align: center; margin-bottom: 8px;">
+            <h2 style="margin: 0; font-size: 14px; font-weight: bold; text-transform: uppercase;">${(settings as any)?.name || (settings as any)?.businessName || 'MI EMPRESA'}</h2>
+            <p style="margin: 2px 0 0 0;">RUC: ${(settings as any)?.ruc || (settings as any)?.document_number || '10000000000'}</p>
+            <p style="margin: 2px 0 0 0;">${settings?.address || 'Dirección'}</p>
+            <p style="margin: 2px 0 0 0;">Telf: ${settings?.phone || '000000000'}</p>
+          </div>
+          
+          <div style="text-align: center; border-top: 1px dashed black; border-bottom: 1px dashed black; padding: 6px 0; margin-bottom: 8px;">
+            <div style="font-weight: bold; font-size: 13px; text-transform: uppercase;">${(viewSale as any)?.type === 'quote' ? 'COTIZACIÓN' : (viewSale as Sale).documentType === 'factura' ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA'}</div>
+            <div style="font-weight: bold; font-size: 15px; margin-top: 2px;">${(viewSale as any)?.type === 'quote' ? `COT-${((viewSale as any)?.quoteNumber || viewSale?.id?.slice(0,6) || '').padStart(6,'0')}` : `${(viewSale as Sale)?.documentSerie || 'B002'} - ${((viewSale as Sale)?.documentNumber || 0).toString().padStart(6,'0')}`}</div>
+          </div>
+
+          <div style="margin-bottom: 8px;">
+            <table style="width: 100%; font-size: 11px; text-align: left;">
+              <tbody>
+                <tr>
+                  <td style="font-weight: bold; width: 65px; vertical-align: top;">CLIENTE:</td>
+                  <td style="text-transform: uppercase;">${viewSale?.customerName || 'CLIENTE VARIOS'}</td>
+                </tr>
+                ${(viewSale as any)?.type !== 'quote' ? `
+                <tr>
+                  <td style="font-weight: bold;">DOC:</td>
+                  <td>${(viewSale as Sale)?.customerDocument || '99999999'}</td>
+                </tr>
+                ` : ''}
+                <tr>
+                  <td style="font-weight: bold;">FECHA:</td>
+                  <td>${viewSale?.date ? format(new Date(viewSale.date), 'dd/MM/yyyy hh:mm a') : ''}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 8px;">
+            <thead>
+              <tr>
+                <th style="text-align: left; border-bottom: 1px dashed black; padding-bottom: 3px; border-top: 1px dashed black; padding-top: 3px; width: 15%;">Cant</th>
+                <th style="text-align: left; border-bottom: 1px dashed black; padding-bottom: 3px; border-top: 1px dashed black; padding-top: 3px; width: 45%;">Desc</th>
+                <th style="text-align: right; border-bottom: 1px dashed black; padding-bottom: 3px; border-top: 1px dashed black; padding-top: 3px; width: 20%;">P.U</th>
+                <th style="text-align: right; border-bottom: 1px dashed black; padding-bottom: 3px; border-top: 1px dashed black; padding-top: 3px; width: 20%;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${viewSale.items.map(item => {
+                  const price = (item as any).customPrice ?? (item as any).unit_price ?? item.product.price;
+                  const lineTotal = price * item.quantity;
+                  return `
+                    <tr>
+                      <td colspan="4" style="padding-top: 4px; text-transform: uppercase;">${item.product.name}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding-bottom: 4px; padding-left: 5px;">${item.quantity}</td>
+                      <td style="padding-bottom: 4px;"></td>
+                      <td style="text-align: right; padding-bottom: 4px;">${price.toFixed(2)}</td>
+                      <td style="text-align: right; padding-bottom: 4px;">${lineTotal.toFixed(2)}</td>
+                    </tr>
+                  `;
+              }).join('')}
+            </tbody>
+          </table>
+
+          <div style="border-top: 1px dashed black; padding-top: 6px; margin-bottom: 6px;">
+            <div style="display: flex; justify-content: space-between;">
+              <span>OP. GRAVADA:</span>
+              <span>S/ ${(viewSale.total / 1.18).toFixed(2)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span>IGV (18%):</span>
+              <span>S/ ${(viewSale.total - (viewSale.total / 1.18)).toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div style="border-top: 2px solid black; border-bottom: 2px solid black; padding: 6px 0; margin-bottom: 8px; display: flex; justify-content: space-between; font-weight: bold; font-size: 13px;">
+            <span style="text-transform: uppercase;">TOTAL:</span>
+            <span>S/ ${viewSale.total.toFixed(2)}</span>
+          </div>
+
+          <div style="margin-bottom: 10px;">
+            <p style="margin: 2px 0;"><span style="font-weight: bold;">SON:</span> SON ${Math.floor(viewSale.total)} CON ${Math.round((viewSale.total % 1) * 100).toString().padStart(2, '0')}/100 SOLES</p>
+            <p style="margin: 2px 0;"><span style="font-weight: bold;">Cond. Venta:</span> ${((viewSale as Sale).paymentMethod || 'EFECTIVO').toUpperCase()}</p>
+          </div>
+
+          ${(viewSale as any)?.type !== 'quote' ? `
+          <div style="text-align: center; margin: 15px 0; display: flex; justify-content: center;">
+            ${renderToStaticMarkup(<QRCodeSVG value={`${(settings as any)?.ruc || '10000000000'}|${(viewSale as Sale).documentType === 'factura' ? '01' : '03'}|${(viewSale as Sale).documentSerie || 'B002'}|${(viewSale as Sale).documentNumber || 0}|${(viewSale.total - (viewSale.total / 1.18)).toFixed(2)}|${viewSale.total.toFixed(2)}|${format(new Date(viewSale.date), 'dd/MM/yyyy')}|1|${(viewSale as Sale).customerDocument || '00000000'}`} size={120} />)}
+          </div>
+          ` : ''}
+
+          ${(viewSale as any)?.type !== 'quote' && (viewSale as Sale).sunatHash ? `
+          <div style="font-size: 9px; margin-bottom: 10px; word-break: break-all; text-align: left;">
+            <span style="font-weight: bold;">HASH:</span><br/>
+            ${(viewSale as Sale).sunatHash}
+          </div>
+          ` : ''}
+
+          <div style="text-align: center; font-size: 9px; font-weight: bold;">
+              <p style="margin: 2px 0;">REPRESENTACIÓN IMPRESA DE LA</p>
+              <p style="margin: 2px 0;">${(viewSale as any)?.type === 'quote' ? 'COTIZACIÓN' : (viewSale as Sale).documentType === 'factura' ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA'}</p>
+              ${(viewSale as any)?.type !== 'quote' ? `<p style="margin: 2px 0; font-size: 8px;">AUTORIZADO CON RESOLUCIÓN N°034-005-0012997/SUNAT</p>` : ''}
+              ${(viewSale as any)?.type !== 'quote' ? `<p style="margin: 2px 0;">CONSULTE EN: WWW.APISUNAT.PE</p>` : ''}
+              <p style="margin: 6px 0 0 0; font-style: italic; font-weight: normal;">Software: FerrePOS v1.0</p>
+          </div>
+        </div>
+      `;
+      tempContainer.innerHTML = htmlString;
+
+      // Small delay to ensure styles apply
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      const canvas = await html2canvas(tempContainer, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        width: tempContainer.offsetWidth,
+        height: tempContainer.offsetHeight
+      });
+
+      document.body.removeChild(tempContainer);
+      const imgData = canvas.toDataURL('image/png');
+      
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [80, Math.max(100, (canvas.height * 80) / canvas.width)]
+      });
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, 80, (canvas.height * 80) / canvas.width);
+      
+      let docName = 'documento';
+      if ((viewSale as any)?.type === 'quote') {
+          docName = `Cotizacion-${(viewSale as any).quoteNumber || viewSale?.id.slice(0,8)}`;
+      } else {
+          docName = `Venta-${(viewSale as Sale)?.documentSerie ? `${(viewSale as Sale)?.documentSerie}-${(viewSale as Sale)?.documentNumber}` : ((viewSale as Sale)?.invoiceNumber || viewSale?.id.slice(0,8))}`;
+      }
+
+      pdf.save(`${docName}.pdf`);
+      
+      toast({
+        title: "PDF Descargado",
+        description: "El ticket se ha descargado correctamente.",
+      });
+
+    } catch (error) {
+      console.error("Error creating PDF:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo generar el PDF del ticket.",
         variant: "destructive"
       });
     }
@@ -735,10 +907,13 @@ export default function Sales() {
                     </div>
 
                     <div className="flex gap-2">
-                        <Button className="w-full gap-2" onClick={() => handlePrintSale(viewSale as Sale)}>
+                        <Button className="flex-1 gap-2" onClick={() => handlePrintSale(viewSale as Sale)}>
                             <Printer className="h-4 w-4" /> Imprimir
                         </Button>
-                        <Button variant="outline" className="w-full gap-2" onClick={handleCaptureImage}>
+                        <Button variant="outline" className="flex-1 gap-2 border-primary text-primary hover:bg-primary hover:text-white transition-colors" onClick={handleDownloadPDF}>
+                            <Download className="h-4 w-4" /> Descargar
+                        </Button>
+                        <Button variant="outline" className="flex-1 gap-2 border-primary text-primary hover:bg-primary hover:text-white transition-colors" onClick={handleCaptureImage}>
                             <Camera className="h-4 w-4" /> Capturar
                         </Button>
                     </div>
