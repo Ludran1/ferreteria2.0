@@ -80,6 +80,9 @@ export default function Sales() {
   const [isVoiding, setIsVoiding] = useState(false);
   const [visibleCount, setVisibleCount] = useState(15);
 
+  // Edit destination modal
+  const [editItem, setEditItem] = useState<any>(null);
+
   const handleVoidSale = async () => {
     if (!saleToVoid || !saleToVoid.documentSerie || !saleToVoid.documentNumber) return;
     
@@ -263,25 +266,27 @@ export default function Sales() {
     }
   }, [saleToPrint]);
 
-  const handleCopySale = (item: any) => {
-    // Save to localStorage to load in Quoter/POS
+  const handleCopySale = (item: any, destination: 'pos' | 'cotizaciones') => {
     const draftData = {
       customerName: item.customerName,
       items: item.items.map((i: any) => ({
         product: i.product,
         quantity: i.quantity,
-        customPrice: i.customPrice ?? i.unit_price ?? i.product.price // Handle different potential field names
+        customPrice: i.customPrice ?? i.unit_price ?? i.product.price
       })),
-      type: item.type // 'sale' or 'quote'
+      type: item.type
     };
 
     localStorage.setItem('posDraft', JSON.stringify(draftData));
-    navigate('/pos-ventas');
+    setEditItem(null);
 
-    toast({
-      title: "Cargando en POS",
-      description: "Redirigiendo para emitir comprobante...",
-    });
+    if (destination === 'pos') {
+      navigate('/pos-ventas');
+      toast({ title: "Cargando en POS", description: "Redirigiendo al módulo POS..." });
+    } else {
+      navigate('/cotizaciones');
+      toast({ title: "Cargando en Cotizaciones", description: "Redirigiendo al módulo de cotizaciones..." });
+    }
   };
 
   const handleCaptureImage = async () => {
@@ -750,11 +755,11 @@ export default function Sales() {
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-center gap-1">
                         <Button
-                          variant="ghost" 
+                          variant="ghost"
                           size="sm"
                           className="h-8 w-8 p-0"
-                          onClick={() => handleCopySale(item)}
-                          title="Editar en POS"
+                          onClick={() => setEditItem(item)}
+                          title="Editar"
                         >
                           <Pencil className="h-4 w-4 text-muted-foreground" />
                         </Button>
@@ -943,6 +948,35 @@ export default function Sales() {
               {isVoiding ? 'Anulando...' : 'Sí, Anular'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Destination Modal */}
+      <Dialog open={!!editItem} onOpenChange={(open) => !open && setEditItem(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>¿Dónde deseas editar?</DialogTitle>
+            <DialogDescription>
+              Elige el módulo en el que se cargará este registro para editarlo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-2">
+            <Button
+              className="w-full justify-start gap-3 h-12"
+              onClick={() => handleCopySale(editItem, 'pos')}
+            >
+              <FileText className="h-5 w-5" />
+              Editar en POS Ventas
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-3 h-12"
+              onClick={() => handleCopySale(editItem, 'cotizaciones')}
+            >
+              <Copy className="h-5 w-5" />
+              Editar en Cotizaciones
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
