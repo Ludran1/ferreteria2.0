@@ -48,17 +48,21 @@ export const A4Document = forwardRef<HTMLDivElement, A4DocumentProps>(
         ref={ref}
         style={{
           width: '794px',
+          height: '1123px',
           backgroundColor: '#ffffff',
           fontFamily: "'Arial', sans-serif",
           fontSize: '13px',
           color: '#1a1a1a',
           boxSizing: 'border-box',
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
         {/* Top color bar */}
         <div style={{ height: '8px', backgroundColor: primaryColor }} />
 
-        <div style={{ padding: '40px 52px' }}>
+        <div style={{ padding: '40px 52px', flex: 1, display: 'flex', flexDirection: 'column' }}>
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
             {/* Company info */}
@@ -209,14 +213,12 @@ export const A4Document = forwardRef<HTMLDivElement, A4DocumentProps>(
           </div>
 
           {/* Footer */}
-          <div style={{ borderTop: '1px solid #e0e0e0', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#aaa' }}>
+          <div style={{ borderTop: '1px solid #e0e0e0', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#aaa', marginTop: 'auto' }}>
             <span>{businessName} — RUC: {ruc}</span>
             <span>Software: FerrePOS v1.0</span>
           </div>
         </div>
 
-        {/* Bottom color bar */}
-        <div style={{ height: '6px', backgroundColor: accentColor, marginTop: '24px' }} />
       </div>
     );
   }

@@ -8,6 +8,7 @@ import { Product, QuoteItem, PrintableDocumentData } from '@/types';
 import { Plus, Search, Minus, Trash2, FileText, ShoppingCart, ScanBarcode, Edit2, Printer, Receipt, RefreshCw, Download } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import { virgenBase64 } from '@/assets/virgen';
 import { QRCodeSVG } from 'qrcode.react';
 import { ThermalReceipt } from '@/components/print/ThermalReceipt';
 import { cn } from '@/lib/utils';
@@ -79,6 +80,7 @@ export default function POSVentas() {
   const [customerAddress, setCustomerAddress] = useState('');
   const [customerDocument, setCustomerDocument] = useState('');
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
+  const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [scannerActive, setScannerActive] = useState(true);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [lastSavedTransaction, setLastSavedTransaction] = useState<any>(null);
@@ -90,7 +92,7 @@ export default function POSVentas() {
   
   // Document type: boleta or factura
   const [documentType, setDocumentType] = useState<'boleta' | 'factura'>('boleta');
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'transfer' | 'yape' | 'plin'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('cash');
   
   const { toast } = useToast();
 
@@ -342,6 +344,17 @@ export default function POSVentas() {
     );
   };
 
+  const updateProductName = (productId: string, newName: string) => {
+    if (!newName.trim()) return;
+    setCartItems((prev) =>
+      prev.map((item) =>
+        item.product.id === productId
+          ? { ...item, product: { ...item.product, name: newName.trim() } }
+          : item
+      )
+    );
+  };
+
   const updateCustomPrice = (productId: string, newPrice: string) => {
     const priceValue = parseFloat(newPrice);
     setCartItems((prev) =>
@@ -589,23 +602,50 @@ export default function POSVentas() {
     if (!element) return;
     try {
       toast({ title: 'Generando PDF', description: 'Por favor, espere...', duration: 2000 });
-      const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/png');
+      // Mover al viewport para captura correcta
+      const prevStyle = element.getAttribute('style') || '';
+      element.style.position = 'fixed';
+      element.style.left = '0';
+      element.style.top = '0';
+      element.style.zIndex = '-1';
+      await new Promise(r => setTimeout(r, 300));
+      const docCanvas = await html2canvas(element, { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff' });
+      element.setAttribute('style', prevStyle);
+
+      // Componer: marca de agua + documento en un solo canvas
+      const finalCanvas = document.createElement('canvas');
+      finalCanvas.width = docCanvas.width;
+      finalCanvas.height = docCanvas.height;
+      const ctx = finalCanvas.getContext('2d')!;
+
+      // Dibujar documento con fondo blanco
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+      ctx.drawImage(docCanvas, 0, 0);
+
+      // Marca de agua encima usando multiply para que se vea a través del contenido
+      await new Promise<void>(resolve => {
+        const wm = new Image();
+        wm.onload = () => {
+          const wmSize = Math.min(finalCanvas.width, finalCanvas.height) * 0.70;
+          const wmX = (finalCanvas.width - wmSize) / 2;
+          const wmY = (finalCanvas.height - wmSize * (wm.height / wm.width)) / 2;
+          ctx.globalAlpha = 0.35;
+          ctx.globalCompositeOperation = 'multiply';
+          ctx.drawImage(wm, wmX, wmY, wmSize, wmSize * (wm.height / wm.width));
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.globalAlpha = 1;
+          resolve();
+        };
+        wm.onerror = () => resolve();
+        wm.src = virgenBase64;
+      });
+
+      const imgData = finalCanvas.toDataURL('image/png');
       const docNumber = lastSavedTransaction?.invoice_number || 'comprobante';
-      // A4: 210mm x 297mm — siempre una sola página escalando al ancho
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pageWidth = 210;
-      const pageHeight = 297;
-      const imgHeightFull = (canvas.height * pageWidth) / canvas.width;
-      if (imgHeightFull <= pageHeight) {
-        pdf.addImage(imgData, 'PNG', 0, 0, pageWidth, imgHeightFull);
-      } else {
-        // escala para que entre en una página
-        const scale = pageHeight / imgHeightFull;
-        const scaledWidth = pageWidth * scale;
-        const x = (pageWidth - scaledWidth) / 2;
-        pdf.addImage(imgData, 'PNG', x, 0, scaledWidth, pageHeight);
-      }
+      // Siempre llenar la hoja A4 completa
+      pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
       pdf.save(`${docNumber}.pdf`);
       toast({ title: 'PDF Descargado', description: `${docNumber}.pdf guardado correctamente.` });
     } catch (error) {
@@ -993,9 +1033,32 @@ export default function POSVentas() {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-foreground truncate">
-                          {item.product.name}
-                        </p>
+                        {editingNameId === item.product.id ? (
+                          <Input
+                            className="h-6 text-sm font-medium px-1"
+                            defaultValue={item.product.name}
+                            autoFocus
+                            onBlur={(e) => {
+                              updateProductName(item.product.id, e.target.value);
+                              setEditingNameId(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                updateProductName(item.product.id, (e.target as HTMLInputElement).value);
+                                setEditingNameId(null);
+                              }
+                              if (e.key === 'Escape') setEditingNameId(null);
+                            }}
+                          />
+                        ) : (
+                          <p
+                            className="text-sm font-medium text-foreground truncate cursor-pointer hover:text-primary"
+                            title="Click para editar nombre"
+                            onClick={() => setEditingNameId(item.product.id)}
+                          >
+                            {item.product.name}
+                          </p>
+                        )}
                       </div>
                       <Button
                         variant="ghost"
@@ -1108,22 +1171,25 @@ export default function POSVentas() {
                 <span>IGV (18%)</span>
                 <span>S/ {igv.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>
               </div>
-              <div className="flex items-center justify-between pt-2 border-t">
-                <div className="flex gap-2">
-                  <Select value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)}>
-                    <SelectTrigger className="w-[120px] h-8">
-                      <SelectValue placeholder="Método" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cash">Efectivo</SelectItem>
-                      <SelectItem value="card">Tarjeta</SelectItem>
-                      <SelectItem value="transfer">Transferencia</SelectItem>
-                      <SelectItem value="yape">Yape</SelectItem>
-                      <SelectItem value="plin">Plin</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <div className="pt-2 border-t space-y-2">
+                <p className="text-sm text-muted-foreground">Método de pago</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { value: 'cash', label: 'Efectivo' },
+                    { value: 'transfer', label: 'Transferencia' },
+                  ] as const).map(m => (
+                    <Button
+                      key={m.value}
+                      variant={paymentMethod === m.value ? 'default' : 'outline'}
+                      size="sm"
+                      className="h-10 text-sm"
+                      onClick={() => setPaymentMethod(m.value)}
+                    >
+                      {m.label}
+                    </Button>
+                  ))}
                 </div>
-                <div className="text-right">
+                <div className="flex justify-between items-center pt-1">
                   <p className="text-sm text-muted-foreground">Total</p>
                   <p className="text-2xl font-bold text-primary">
                     S/ {total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
