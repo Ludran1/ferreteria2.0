@@ -1,11 +1,13 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Product, QuoteItem, PrintableDocumentData } from '@/types';
-import { Plus, Search, Minus, Trash2, FileText, ShoppingCart, ScanBarcode, Edit2, Printer, Receipt, RefreshCw } from 'lucide-react';
+import { Plus, Search, Minus, Trash2, FileText, ShoppingCart, ScanBarcode, Edit2, Printer, Receipt, RefreshCw, Download } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import { QRCodeSVG } from 'qrcode.react';
 import { ThermalReceipt } from '@/components/print/ThermalReceipt';
 import { cn } from '@/lib/utils';
@@ -28,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 import { usePrint } from '@/hooks/usePrint';
 import { PrintableDocument } from '@/components/print/PrintableDocument';
+import { A4Document } from '@/components/print/A4Document';
 import { numberToText } from '@/lib/numberToText';
 
 // Hooks
@@ -577,6 +580,37 @@ export default function POSVentas() {
     setCustomerDocument('');
     setCustomerAddress('');
     setSelectedClient(null);
+  };
+
+  const pdfPrintRef = useRef<HTMLDivElement>(null);
+
+  const handleDownloadPDF = async () => {
+    const element = pdfPrintRef.current;
+    if (!element) return;
+    try {
+      toast({ title: 'Generando PDF', description: 'Por favor, espere...', duration: 2000 });
+      const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+      const docNumber = lastSavedTransaction?.invoice_number || 'comprobante';
+      // A4: 210mm x 297mm — siempre una sola página escalando al ancho
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const imgHeightFull = (canvas.height * pageWidth) / canvas.width;
+      if (imgHeightFull <= pageHeight) {
+        pdf.addImage(imgData, 'PNG', 0, 0, pageWidth, imgHeightFull);
+      } else {
+        // escala para que entre en una página
+        const scale = pageHeight / imgHeightFull;
+        const scaledWidth = pageWidth * scale;
+        const x = (pageWidth - scaledWidth) / 2;
+        pdf.addImage(imgData, 'PNG', x, 0, scaledWidth, pageHeight);
+      }
+      pdf.save(`${docNumber}.pdf`);
+      toast({ title: 'PDF Descargado', description: `${docNumber}.pdf guardado correctamente.` });
+    } catch (error) {
+      toast({ title: 'Error', description: 'No se pudo generar el PDF.', variant: 'destructive' });
+    }
   };
 
   const getPrintData = (): PrintableDocumentData => {
@@ -1178,6 +1212,9 @@ export default function POSVentas() {
                 <>
                   <div className="flex-1 overflow-auto border rounded-lg bg-white">
                     <ThermalReceipt ref={printRef} data={receiptData} />
+                    <div ref={pdfPrintRef} style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+                      <A4Document data={getPrintData()} settings={settings} customerDocument={customerDocument} customerAddress={customerAddress} />
+                    </div>
                   </div>
 
                   {/* Print Portal - Rendered directly in body for clean printing */}
@@ -1210,6 +1247,10 @@ export default function POSVentas() {
           <DialogFooter className="flex gap-2 sm:gap-2">
             <Button variant="outline" onClick={handleCloseReceiptModal}>
               Cerrar
+            </Button>
+            <Button variant="outline" onClick={handleDownloadPDF} className="gap-2">
+              <Download className="h-4 w-4" />
+              Descargar PDF
             </Button>
             <Button onClick={() => window.print()} className="gap-2">
               <Printer className="h-4 w-4" />

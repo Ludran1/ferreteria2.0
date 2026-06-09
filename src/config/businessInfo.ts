@@ -4,9 +4,9 @@ import { BusinessInfo } from '@/types';
 export const businessInfo: BusinessInfo = {
   name: 'Ferretería El Martillo',
   rfc: 'FEM123456789',
-  address: 'Av. Principal 123, Col. Centro, CP 12345',
+  address: 'Villa Periodista Mz G Lt3',
   phone: '555-123-4567',
-  email: 'contacto@ferreteria.com',
+  email: 'haydee1981flores@gmail.com',
 };
 
 export const printTerms = {
