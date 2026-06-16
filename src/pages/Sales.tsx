@@ -368,7 +368,7 @@ export default function Sales() {
         <div style="width: 300px; padding: 15px; font-family: 'Courier New', Courier, monospace; font-size: 11px; color: black; background: white; line-height: 1.3; margin: 0 auto; box-sizing: border-box;">
           <div style="text-align: center; margin-bottom: 8px;">
             <h2 style="margin: 0; font-size: 14px; font-weight: bold; text-transform: uppercase;">${(settings as any)?.name || (settings as any)?.businessName || 'MI EMPRESA'}</h2>
-            <p style="margin: 2px 0 0 0;">RUC: ${(settings as any)?.ruc || (settings as any)?.document_number || '10000000000'}</p>
+            <p style="margin: 2px 0 0 0;">RUC: ${(settings as any)?.rfc || (settings as any)?.document_number || '—'}</p>
             <p style="margin: 2px 0 0 0;">${settings?.address || 'Dirección'}</p>
             <p style="margin: 2px 0 0 0;">Telf: ${settings?.phone || '000000000'}</p>
           </div>
@@ -450,7 +450,7 @@ export default function Sales() {
 
           ${(viewSale as any)?.type !== 'quote' ? `
           <div style="text-align: center; margin: 15px 0; display: flex; justify-content: center;">
-            ${renderToStaticMarkup(<QRCodeSVG value={`${(settings as any)?.ruc || '10000000000'}|${(viewSale as Sale).documentType === 'factura' ? '01' : '03'}|${(viewSale as Sale).documentSerie || 'B002'}|${(viewSale as Sale).documentNumber || 0}|${(viewSale.total - (viewSale.total / 1.18)).toFixed(2)}|${viewSale.total.toFixed(2)}|${format(new Date(viewSale.date), 'dd/MM/yyyy')}|1|${(viewSale as Sale).customerDocument || '00000000'}`} size={120} />)}
+            ${renderToStaticMarkup(<QRCodeSVG value={`${(settings as any)?.rfc || '00000000000'}|${(viewSale as Sale).documentType === 'factura' ? '01' : '03'}|${(viewSale as Sale).documentSerie || 'B002'}|${(viewSale as Sale).documentNumber || 0}|${(viewSale.total - (viewSale.total / 1.18)).toFixed(2)}|${viewSale.total.toFixed(2)}|${format(new Date(viewSale.date), 'dd/MM/yyyy')}|1|${(viewSale as Sale).customerDocument || '00000000'}`} size={120} />)}
           </div>
           ` : ''}
 
@@ -549,7 +549,11 @@ export default function Sales() {
       total: sale.total,
       paymentMethod: isQuote ? 'Pendiente' : sale.paymentMethod,
       sunatHash: sale.sunatHash,
-      isElectronic: !isQuote
+      isElectronic: !isQuote,
+      businessRuc: (settings as any)?.rfc || '',
+      businessName: settings?.name || '',
+      businessAddress: settings?.address || '',
+      businessPhone: settings?.phone || '',
     };
   };
 

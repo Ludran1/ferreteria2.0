@@ -52,7 +52,7 @@ export const PrintableDocument = forwardRef<HTMLDivElement, PrintableDocumentPro
           <h2 style={{ margin: '0', fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase' }}>
              {(info as any)?.name || (info as any)?.businessName || 'MI EMPRESA'}
           </h2>
-          <p style={{ margin: '2px 0 0 0' }}>RUC: {(info as any)?.ruc || (info as any)?.document_number || '10000000000'}</p>
+          <p style={{ margin: '2px 0 0 0' }}>RUC: {(info as any)?.rfc || (info as any)?.document_number || '—'}</p>
           <p style={{ margin: '2px 0 0 0' }}>{info?.address || 'Dirección'}</p>
           <p style={{ margin: '2px 0 0 0' }}>Telf: {info?.phone || '000000000'}</p>
         </div>
@@ -161,7 +161,7 @@ export const PrintableDocument = forwardRef<HTMLDivElement, PrintableDocumentPro
               {data.type !== 'quote' && (
               <div style={{ textAlign: 'center', margin: '15px 0', display: 'flex', justifyContent: 'center' }}>
                  <QRCodeSVG 
-                    value={`${(info as any)?.ruc || '10000000000'}|${isFactura ? '01' : '03'}|${data.documentNumber.split('-')[0] || 'B002'}|${data.documentNumber.split('-')[1] || data.documentNumber}|${(data.total - (data.total / 1.18)).toFixed(2)}|${data.total.toFixed(2)}|${format(new Date(data.date), 'dd/MM/yyyy')}|1|${data.customerPhone || '00000000'}`} 
+                    value={`${(info as any)?.rfc || '00000000000'}|${isFactura ? '01' : '03'}|${data.documentNumber.split('-')[0] || 'B002'}|${data.documentNumber.split('-')[1] || data.documentNumber}|${(data.total - (data.total / 1.18)).toFixed(2)}|${data.total.toFixed(2)}|${format(new Date(data.date), 'dd/MM/yyyy')}|1|${data.customerPhone || '00000000'}`}
                     size={120} 
                  />
               </div>

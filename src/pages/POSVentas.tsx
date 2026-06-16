@@ -642,7 +642,9 @@ export default function POSVentas() {
       });
 
       const imgData = finalCanvas.toDataURL('image/png');
-      const docNumber = lastSavedTransaction?.invoice_number || 'comprobante';
+      const docNumber = sunatResult
+        ? `${sunatResult.serie}-${sunatResult.numero.toString().padStart(6, '0')}`
+        : lastSavedTransaction?.invoice_number || 'comprobante';
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       // Siempre llenar la hoja A4 completa
       pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
@@ -654,13 +656,13 @@ export default function POSVentas() {
   };
 
   const getPrintData = (): PrintableDocumentData => {
-    const docNumber = lastSavedTransaction 
-      ? lastSavedTransaction.invoice_number
-      : 'PENDIENTE';
+    const docNumber = sunatResult
+      ? `${sunatResult.serie}-${sunatResult.numero.toString().padStart(6, '0')}`
+      : lastSavedTransaction?.invoice_number || 'PENDIENTE';
 
     return {
       type: 'sale',
-      documentNumber: docNumber || 'PENDIENTE',
+      documentNumber: docNumber,
       date: new Date(),
       customerName,
       customerPhone: customerPhone || undefined,
@@ -1272,6 +1274,10 @@ export default function POSVentas() {
                 paymentMethod,
                 sunatHash: sunatResult?.hash || '',
                 isElectronic: true,
+                businessRuc: (settings as any)?.rfc || '',
+                businessName: settings?.name || '',
+                businessAddress: settings?.address || '',
+                businessPhone: settings?.phone || '',
               };
 
               return (

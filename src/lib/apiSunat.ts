@@ -101,8 +101,9 @@ export function buildDocumentRequest(params: {
   total: number;
 }): SunatDocumentRequest {
   const now = new Date();
-  const fecha = now.toISOString().split('T')[0]; // YYYY-MM-DD
-  const hora = now.toTimeString().split(' ')[0]; // HH:mm:ss
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const fecha = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const hora = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
   return {
     documento: params.documentType,

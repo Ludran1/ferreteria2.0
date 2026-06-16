@@ -24,6 +24,10 @@ export interface ThermalReceiptData {
   paymentMethod: string;
   sunatHash?: string;
   isElectronic?: boolean; // To show electronic footer
+  businessRuc?: string;
+  businessName?: string;
+  businessAddress?: string;
+  businessPhone?: string;
 }
 
 interface ThermalReceiptProps {
@@ -36,10 +40,10 @@ export const ThermalReceipt = forwardRef<HTMLDivElement, ThermalReceiptProps>(
       <div ref={ref} className="w-[80mm] p-4 text-xs text-black bg-white" id="receipt-print-area">
         {/* Header */}
         <div className="text-center mb-4 space-y-1">
-          <h2 className="font-bold text-lg uppercase">Ferreteria Virgen de Guadalupe</h2>
-          <p>RUC: 10408724771</p>
-          <p className="text-[10px] break-words">Coop Villa los periodista Mz G Lt 1 - ATE - LIMA</p>
-          <p className="text-[10px]">Telf: 975 495 081 / 946 367 808</p>
+          <h2 className="font-bold text-lg uppercase">{data.businessName || 'MI EMPRESA'}</h2>
+          <p>RUC: {data.businessRuc || '—'}</p>
+          <p className="text-[10px] break-words">{data.businessAddress || ''}</p>
+          <p className="text-[10px]">{data.businessPhone ? `Telf: ${data.businessPhone}` : ''}</p>
           
           <div className="border-t-2 border-b-2 border-black border-dashed py-1 my-2">
             <div className="font-bold text-sm uppercase">{data.title}</div>
